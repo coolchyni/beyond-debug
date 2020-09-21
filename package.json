@@ -1,0 +1,315 @@
+{
+	"name": "beyond-debug",
+	"displayName": "GDB Debugger - Beyond",
+	"version": "0.9.1",
+	"publisher": "coolchyni",
+	"description": "Debugger with gdb for c,c++,freepascal,fortran and more.",
+	"author": {
+		"name": "coolchyni",
+		"email": "coolchyni@gmail.com"
+	},
+	"license": "MIT",
+	"keywords": [
+		"beyond",
+		"debug",
+		"gdb",
+		"c++",
+		"cpp",
+		"pascal",
+		"fpc",
+		"debugger"
+	],
+	"engines": {
+		"vscode": "^1.44.0"
+	},
+	"icon": "images/beyond-debug.png",
+	"categories": [
+		"Debuggers",
+		"Programming Languages"
+	],
+	"private": true,
+	"repository": {
+		"type": "git",
+		"url": "https://coolchyni@dev.azure.com/coolchyni/byend-debug/_git/byend-debug"
+	},
+	"scripts": {
+		"vscode:prepublish": "yarn run compile",
+		"compile": "tsc -p ./",
+		"lint": "eslint src --ext ts",
+		"watch": "tsc -watch -p ./",
+		"pretest": "yarn run compile && yarn run lint",
+		
+		"test": "node ./out/test/runTest.js",
+		"package": "vsce package",
+		"publish": "vsce publish",
+		"peg": "pegjs -o ./out/dbgmits/mi_output_parser.js src/dbgmits/mi_output_grammar.pegjs"
+	},
+	"dependencies": {
+		"await-notify": "1.0.1",
+		"vscode-debugadapter": "1.41.1"
+	},
+	"devDependencies": {
+		"@types/glob": "^7.1.3",
+		"@types/mocha": "^8.0.0",
+		"@types/node": "^14.0.27",
+		"@types/vscode": "^1.44.0",
+		"@typescript-eslint/eslint-plugin": "^3.8.0",
+		"@typescript-eslint/parser": "^3.8.0",
+		"@types/bunyan": "0.0.30",
+		"eslint": "^7.6.0",
+		"glob": "^7.1.6",
+		"pegjs": "^0.10.0",
+		"mocha": "^8.0.1",
+		"typescript": "^3.8.3",
+		"vsce": "1.78.0",
+		"vscode-debugadapter-testsupport": "1.41.0",
+		"vscode-test": "1.3.0"
+	},
+	"main": "./out/extension",
+	"activationEvents": [
+		"onDebug"
+	],
+	"contributes": {
+		"breakpoints": [
+			{
+				"language": "c"
+			},
+			{
+				"language": "c++"
+			},
+			{
+				"language": "cpp"
+			},
+			{
+				"language": "d"
+			},
+			{
+				"language": "objective-c"
+			},
+			{
+				"language": "fortran"
+			},
+			{
+				"language": "fortran-modern"
+			},
+			{
+				"language": "fortran90"
+			},
+			{
+				"language": "fortran_free-form"
+			},
+			{
+				"language": "fortran_fixed-form"
+			},
+			{
+				"language": "rust"
+			},
+			{
+				"language": "pascal"
+			},
+			{
+				"language": "objectpascal"
+			},
+			{
+				"language": "ada"
+			},
+			{
+				"language": "nim"
+			},
+			{
+				"language": "arm"
+			},
+			{
+				"language": "asm"
+			},
+			{
+				"language": "vala"
+			},
+			{
+				"language": "crystal"
+			},
+			{
+				"language": "kotlin"
+			},
+			{
+				"language": "zig"
+			}
+		],
+		"debuggers": [
+			{
+				"type": "by-gdb",
+				"label": "GDB(Beyond)",
+				"program": "./out/debugAdapter.js",
+				"runtime": "node",
+				"configurationAttributes": {
+					"launch": {
+						"required": [
+							"program"
+						],
+						"properties": {
+							"debuggerPath": {
+								"type": "string",
+								"description": "Debugger program path. (gdb file path)",
+								"default": "gdb"
+							},
+							"debuggerArgs": {
+								"type": "array",
+								"description": "Debugger program launch args.",
+								"items": {
+									"type": "string"
+								}
+							},
+							"program": {
+								"type": "string",
+								"description": "Path of executable for debugging symbols.",
+								"default": "${workspaceFolder}/${fileBasenameNoExtension}"
+							},
+							"cwd": {
+								"type": "string",
+								"description": "Current path of local.",
+								"default": "${workspaceRoot}"
+							},
+							"remote": {
+								"required": [
+									"enabled",
+									"address"
+								],
+								"properties": {
+									"enabled": {
+										"type": "boolean",
+										"description": "enable remote debug.",
+										"default": true
+									},
+									"address": {
+										"type": "string",
+										"description": "Remote address and port. [ip:port] ",
+										"default": ""
+									},
+									"mode": {
+										"type": "string",
+										"description": "Use extended target.",
+										"default": "remote",
+										"enum": [
+											"remote",
+											"extended-remote"
+										]
+									},
+									"execfile": {
+										"type": "string",
+										"description": "Remote exec file. Used on extended-remote mode.  Will use local program name if not set."
+									},
+									"transfer": {
+										"type": "array",
+										"description": "Transfer local file to remote before launch.",
+										"items": {
+											"properties": {
+												"from": {
+													"type": "string"
+												},
+												"to": {
+													"type": "string"
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"attach": {
+						"required": [
+							"program",
+							"processId"
+						],
+						"properties": {
+							"debuggerPath": {
+								"type": "string",
+								"description": "Debugger program path. (gdb file path)",
+								"default": "gdb"
+							},
+							"debuggerArgs": {
+								"type": "array",
+								"description": "Debugger program launch args.",
+								"items": {
+									"type": "string"
+								}
+							},
+							"program": {
+								"type": "string",
+								"description": "Path of executable for debugging symbols.",
+								"default": "${workspaceFolder}/${fileBasenameNoExtension}"
+							},
+							"cwd": {
+								"type": "string",
+								"description": "Current path of local.",
+								"default": "${workspaceRoot}"
+							},
+							"processId": {
+								"anyOf": [
+									{
+										"type": "integer",
+										"description": "The process id to attach to. ",
+										"default": 0
+									}
+								]
+							}
+						}
+					}
+				},
+				"initialConfigurations": [
+					{
+						"type": "by-gdb",
+						"request": "launch",
+						"name": "Launch(gdb)",
+						"program": "${fileBasenameNoExtension}",
+						"cwd": "${workspaceRoot}"
+					}
+				],
+				"configurationSnippets": [
+					{
+						"label": "GDB(Beyond): Launch a program",
+						"description": "A new configuration for 'debugging' a user selected markdown file.",
+						"body": {
+							"type": "by-gdb",
+							"request": "launch",
+							"name": "Launch(gdb)",
+							"program": "^\"\\${fileBasenameNoExtension}\"",
+							"cwd": "^\"\\${workspaceRoot}\""
+
+						}
+					},
+					{
+						"label": "GDB(Beyond): Attach to process",
+						"description": "A new configuration for 'debugging' a user selected markdown file.",
+						"body": {
+							"type": "by-gdb",
+							"request": "attach",
+							"name": "Attach(gdb)",
+							"program": "^\"\\${fileBasenameNoExtension}\"",
+							"cwd": "^\"\\${workspaceRoot}\"",
+							"processId": 1234
+						}
+					},
+					{
+						"label": "GDB(Beyond): Connect to gdbserver",
+						"description": "A new configuration for 'debugging' a user selected markdown file.",
+						"body": {
+							"type": "by-gdb",
+							"request": "launch",
+							"name": "Launch(remote)",
+							"program": "^\"\\${fileBasenameNoExtension}\"",
+							"cwd": "^\"\\${workspaceRoot}\"",
+							"remote": {
+								"enabled": true,
+								"address": ":2345",
+								"mode": "remote",
+								"execfile": "^\"\\${fileBasenameNoExtension}\""
+							}
+						}
+					}
+					
+				]
+			}
+		]
+	}
+}

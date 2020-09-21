@@ -1,0 +1,8 @@
+.DS_Store
+node_modules/
+out/
+npm-debug.log
+mock-debug.txt
+*.vsix
+.vscode-test/
+media/
