@@ -41,6 +41,7 @@ interface ILaunchRequestArguments extends DebugProtocol.LaunchRequestArguments {
 	program: string;
 	programArgs?:string;
 	cwd?: string;
+	commandsBeforeExec?:string[];
 	remote?: {
 		enabled: boolean,
 		address: string,
@@ -54,10 +55,10 @@ interface IAttachRequestArguments extends DebugProtocol.AttachRequestArguments {
 	program: string;
 	/** Traget process id to attach. */
 	processId: number;
-	/** enable logging the Debug Adapter Protocol */
-	trace?: boolean;
-	/** run without debugging */
-	noDebug?: boolean;
+	debuggerPath?: string;
+	debuggerArgs?: string[];
+	cwd?: string;
+	commandsBeforeExec?:string[];
 }
 enum EMsgType {
 	info,	//black
@@ -147,6 +148,9 @@ export class BeyDebug extends DebugSession {
 		this.dbgSession.on(dbg.EVENT_DBG_CONSOLE_OUTPUT, (out: string) => {
 			this.sendMsgToDebugConsole(out);
 		});
+		// this.dbgSession.on(dbg.EVENT_DBG_LOG_OUTPUT,(out: string) => {
+		// 	this.sendMsgToDebugConsole(out,EMsgType.info2);
+		// });
 		this.dbgSession.on(dbg.EVENT_TARGET_RUNNING, (out) => {
 			this._isRunning = true;
 			logger.log(out);
@@ -262,6 +266,14 @@ export class BeyDebug extends DebugSession {
 			await this.dbgSession.environmentCd(args.cwd);
 		}
 
+		if (args.commandsBeforeExec){
+			for await (const cmd of args.commandsBeforeExec) {
+				this.dbgSession.execNativeCommand(cmd)
+				.catch((e)=>{
+					this.sendMsgToDebugConsole(e.message,EMsgType.error);
+				});
+			}
+		}
 		// start the program 
 		let ret = await this.dbgSession.setExecutableFile(args.program).catch((e) => {
 
@@ -353,6 +365,7 @@ export class BeyDebug extends DebugSession {
 
 		}
 
+		
 		await this.dbgSession.startInferior().catch((e) => {
 			this.sendMsgToDebugConsole(e.message, EMsgType.error);
 			vscode.window.showErrorMessage("Failed to start the debugger." + e.message);
@@ -364,15 +377,24 @@ export class BeyDebug extends DebugSession {
 
 	protected async attachRequest(response: DebugProtocol.AttachResponse, args: IAttachRequestArguments) {
 
-
-		// make sure to 'Stop' the buffered logging if 'trace' is not set
-
+		vscode.commands.executeCommand('workbench.panel.repl.view.focus');
 		// wait until configuration has finished (and configurationDoneRequest has been called)
-		this.dbgSession.startIt();
+		this.dbgSession.startIt(args.debuggerPath, args.debuggerArgs);
 		await this._configurationDone.wait(1001);
 		//must wait for configure done. It will get error args without this.
 		await this._startDone.wait(1002);
-		// start the program 
+		//await this.dbgSession.execNativeCommand('-gdb-set mi-async on');
+		if (args.cwd) {
+			await this.dbgSession.environmentCd(args.cwd);
+		}
+		
+		if (args.commandsBeforeExec){
+			for await (const cmd of args.commandsBeforeExec) {
+				this.dbgSession.execNativeCommand(cmd).catch((e)=>{
+					this.sendMsgToDebugConsole(e.message,EMsgType.error);
+				});
+			}
+		}
 
 		this.dbgSession.setExecutableFile(args.program).catch((e) => {
 			this.sendMsgToDebugConsole(e.message, EMsgType.error);
@@ -615,7 +637,9 @@ export class BeyDebug extends DebugSession {
 	protected async evaluateRequest(response: DebugProtocol.EvaluateResponse, args: DebugProtocol.EvaluateArguments) {
 
 		if (args.context === 'repl') {
-			let val = await this.dbgSession.execNativeCommand(args.expression);
+			let val = await this.dbgSession.execNativeCommand(args.expression).catch((e)=>{
+				this.sendMsgToDebugConsole(e.message,EMsgType.error);
+			});;
 		} else { //'watch hover'
 			let key = this._currentThreadId?.id + "_" + this._currentFrameLevel + "_" + args.expression;
 			let watch: void | IWatchInfo = this._watchs.get(key);

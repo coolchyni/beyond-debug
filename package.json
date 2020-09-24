@@ -173,6 +173,13 @@
 								"description": "Current path of local.",
 								"default": "${workspaceRoot}"
 							},
+							"commandsBeforeExec":{
+								"type":"array",
+								"description":"Commands run before execution. Can be any gdb or gdb-mi command.",
+								"items":{
+									"type":"string"
+								}
+							},
 							"remote": {
 								"required": [
 									"enabled",
@@ -242,6 +249,13 @@
 								"type": "string",
 								"description": "Path of executable for debugging symbols.",
 								"default": "${workspaceFolder}/${fileBasenameNoExtension}"
+							},
+							"commandsBeforeExec":{
+								"type":"array",
+								"description":"Commands run before execution. Can be any gdb or gdb-mi command.",
+								"items":{
+									"type":"string"
+								}
 							},
 							"cwd": {
 								"type": "string",

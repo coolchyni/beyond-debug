@@ -1599,11 +1599,12 @@ export default class DebugSession extends events.EventEmitter {
    * Run native command
    * @param cmd 
    */
-  execNativeCommand(cmd: string) {
+  execNativeCommand(cmd: string): Promise<any>  {
     return this.getNativeCommandOutput(cmd, null, (output: any) => {
       return output;
     }).catch((e) => {
       logger.error(e);
+      throw e;
 
     });
   }
