@@ -1,7 +1,7 @@
 {
 	"name": "beyond-debug",
 	"displayName": "GDB Debugger - Beyond",
-	"version": "0.9.1",
+	"version": "0.9.2",
 	"publisher": "coolchyni",
 	"description": "Debugger with gdb for c,c++,freepascal,fortran and more.",
 	"author": {
@@ -163,6 +163,10 @@
 								"type": "string",
 								"description": "Path of executable for debugging symbols.",
 								"default": "${workspaceFolder}/${fileBasenameNoExtension}"
+							},
+							"programArgs":{
+								"type":"string",
+								"description":"Set the inferior program arguments, to be used in the program run"
 							},
 							"cwd": {
 								"type": "string",

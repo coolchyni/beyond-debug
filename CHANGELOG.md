@@ -1,4 +1,7 @@
 
+## [0.9.2] -  2020-09-24
+### Added
+- add `programArgs` Set the inferior program arguments, to be used in the program run 
 ## [0.9.1] -  2020-09-17
 ### Changed 
 -  Change keyword in `package.json`

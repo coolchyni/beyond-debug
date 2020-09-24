@@ -39,6 +39,7 @@ interface ILaunchRequestArguments extends DebugProtocol.LaunchRequestArguments {
 	debuggerPath?: string;
 	debuggerArgs?: string[];
 	program: string;
+	programArgs?:string;
 	cwd?: string;
 	remote?: {
 		enabled: boolean,
@@ -275,6 +276,10 @@ export class BeyDebug extends DebugSession {
 			return;
 		}
 
+		//set programArgs
+		if(args.programArgs){
+			await this.dbgSession.setInferiorArguments(args.programArgs);
+		}
 
 		if (args.remote?.enabled) {
 			if (!args.remote.address) {
@@ -374,7 +379,6 @@ export class BeyDebug extends DebugSession {
 			vscode.window.showErrorMessage(e.message);
 			this.sendEvent(new TerminatedEvent(false));
 		});
-
 
 		this.dbgSession.targetAttach(args.processId);
 
