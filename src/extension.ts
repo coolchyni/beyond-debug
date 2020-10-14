@@ -30,7 +30,6 @@ export function activate(context: vscode.ExtensionContext) {
 	},undefined,true);
 	logger.setup(LogLevel.Log);
 	
-	
 	// register a configuration provider for 'hi-gdb' debug type
 	const provider = new HiDebugConfigurationProvider();
 	context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('by-gdb', provider));

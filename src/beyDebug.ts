@@ -20,6 +20,7 @@ import { TargetStopReason, IStackFrameVariablesInfo, IVariableInfo, IStackFrameI
 import { watch } from 'fs';
 import { threadId } from 'worker_threads';
 import { exit } from 'process';
+import { log } from 'console';
 
 function timeout(ms: number) {
 	return new Promise(resolve => setTimeout(resolve, ms));
@@ -42,6 +43,7 @@ interface ILaunchRequestArguments extends DebugProtocol.LaunchRequestArguments {
 	programArgs?:string;
 	cwd?: string;
 	commandsBeforeExec?:string[];
+	varUpperCase:boolean;
 	remote?: {
 		enabled: boolean,
 		address: string,
@@ -59,6 +61,7 @@ interface IAttachRequestArguments extends DebugProtocol.AttachRequestArguments {
 	debuggerArgs?: string[];
 	cwd?: string;
 	commandsBeforeExec?:string[];
+	varUpperCase:boolean;
 }
 enum EMsgType {
 	info,	//black
@@ -93,6 +96,8 @@ export class BeyDebug extends DebugSession {
 	private _currentThreadId?: IThreadInfo;
 
 	private dbgSession: BeyDbgSession;
+
+	private varUpperCase:boolean=false;
 
 	private sendMsgToDebugConsole(msg: string, itype: EMsgType = EMsgType.info) {
 		let style = [TE_Style.Blue];
@@ -160,24 +165,66 @@ export class BeyDebug extends DebugSession {
 			this._isRunning = false;
 			this._variableHandles.reset();
 
-
+			
 			switch (e.reason) {
+					
+				/** A breakpoint was hit. */
+				case TargetStopReason.BreakpointHit:
+				/** A step instruction finished. */
+				case TargetStopReason.EndSteppingRange:
+				/** A step-out instruction finished. */
+				case TargetStopReason.FunctionFinished:	
+				/** The target was signalled. */
+				case TargetStopReason.SignalReceived:
+				/** The target encountered an exception (this is LLDB specific). */
+				case TargetStopReason.ExceptionReceived:
+					break;
 
-				case TargetStopReason.Exited:
-				case TargetStopReason.ExitedNormally:
+
+
+				/** An inferior terminated because it received a signal. */
 				case TargetStopReason.ExitedSignalled:
+				/** An inferior terminated (for some reason, check exitCode for clues). */
+				case TargetStopReason.Exited:
+				/** The target finished executing and terminated normally. */
+				case TargetStopReason.ExitedNormally:
 					this.sendEvent(new TerminatedEvent(false));
 					break;
+								
+				/** Catch-all for any of the other numerous reasons. */
+				case TargetStopReason.Unrecognized:
 				default:
-					this.sendEvent(new StoppedEvent('entry', e.threadId));
+					this.sendEvent(new StoppedEvent('Unrecognized', e.threadId));
 			}
 
 		});
 
+		//'step', 'breakpoint', 'exception', 'pause', 'entry', 'goto', 'function breakpoint', 'data breakpoint', 'instruction breakpoint'
 		this.dbgSession.on(dbg.EVENT_BREAKPOINT_HIT, (e: dbg.IBreakpointHitEvent) => {
-			logger.log(e.reason.toString());
-			this.sendEvent(new StoppedEvent('entry', e.threadId));
+			this.sendEvent(new StoppedEvent('breakpoint', e.threadId));
 		});
+		this.dbgSession.on(dbg.EVENT_STEP_FINISHED, (e: dbg.IStepFinishedEvent) => {
+			this.sendEvent(new StoppedEvent('step', e.threadId));
+		});
+		this.dbgSession.on(dbg.EVENT_FUNCTION_FINISHED, (e: dbg.IStepOutFinishedEvent) => {
+			this.sendEvent(new StoppedEvent('function breakpoint', e.threadId));
+		});
+		this.dbgSession.on(dbg.EVENT_SIGNAL_RECEIVED, (e: dbg.ISignalReceivedEvent) => {
+			let event=new StoppedEvent('exception', e.threadId,e.signalMeaning);
+			event.body['text']=e.signalMeaning;
+			event.body['description']=e.signalMeaning;
+			this.sendEvent(event);
+		});
+		this.dbgSession.on(dbg.EVENT_EXCEPTION_RECEIVED, (e: dbg.IExceptionReceivedEvent) => {
+			this.sendEvent(new StoppedEvent('exception', e.threadId,e.exception));
+		});
+
+		 
+		
+		
+		
+
+
 		this.dbgSession.on(dbg.EVENT_TARGET_RUNNING, () => {
 
 		});
@@ -265,7 +312,7 @@ export class BeyDebug extends DebugSession {
 		if (args.cwd) {
 			await this.dbgSession.environmentCd(args.cwd);
 		}
-
+		this.varUpperCase=args.varUpperCase;
 		if (args.commandsBeforeExec){
 			for await (const cmd of args.commandsBeforeExec) {
 				this.dbgSession.execNativeCommand(cmd)
@@ -336,7 +383,7 @@ export class BeyDebug extends DebugSession {
 
 
 
-						this.dbgSession.targetFilePut(trans.from, trans.to).catch((e) => {
+						await this.dbgSession.targetFilePut(trans.from, trans.to).catch((e) => {
 							vscode.window.showErrorMessage(e.message);
 							this.sendEvent(new ProgressEndEvent(id, e.message));
 						}).then(() => {
@@ -387,7 +434,7 @@ export class BeyDebug extends DebugSession {
 		if (args.cwd) {
 			await this.dbgSession.environmentCd(args.cwd);
 		}
-		
+		this.varUpperCase=args.varUpperCase;
 		if (args.commandsBeforeExec){
 			for await (const cmd of args.commandsBeforeExec) {
 				this.dbgSession.execNativeCommand(cmd).catch((e)=>{
@@ -516,7 +563,6 @@ export class BeyDebug extends DebugSession {
 		this._currentFrameLevel = args.frameId;
 
 
-
 		response.body = {
 			scopes: [
 				{
@@ -635,18 +681,21 @@ export class BeyDebug extends DebugSession {
 	}
 
 	protected async evaluateRequest(response: DebugProtocol.EvaluateResponse, args: DebugProtocol.EvaluateArguments) {
-
 		if (args.context === 'repl') {
 			let val = await this.dbgSession.execNativeCommand(args.expression).catch((e)=>{
 				this.sendMsgToDebugConsole(e.message,EMsgType.error);
 			});;
 		} else { //'watch hover'
-			let key = this._currentThreadId?.id + "_" + this._currentFrameLevel + "_" + args.expression;
+			if (this._currentFrameLevel!==args.frameId){
+				this.dbgSession.selectStackFrame({frameLevel:args.frameId});
+
+			}
+			let key = this._currentThreadId?.id + "_" + args.frameId + "_" + args.expression;
 			let watch: void | IWatchInfo = this._watchs.get(key);
 
 			if (!watch) {
-				watch = await this.dbgSession.addWatch(args.expression, {
-					frameLevel: this._currentFrameLevel,
+				watch = await this.dbgSession.addWatch(this.varUpperCase?args.expression.toUpperCase():args.expression, {
+					frameLevel: args.frameId,
 					threadId: this._currentThreadId?.id
 				}).catch((e) => {
 
@@ -802,4 +851,9 @@ export class BeyDebug extends DebugSession {
 		await this.dbgSession.end(true);
 		this.sendResponse(response);
 	}
+
+	protected async  restartFrameRequest(response: DebugProtocol.RestartFrameResponse, args: DebugProtocol.RestartFrameArguments, request?: DebugProtocol.Request){
+		logger.log(args.frameId.toString());
+	}
+   
 }

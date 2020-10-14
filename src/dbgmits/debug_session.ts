@@ -766,6 +766,18 @@ export default class DebugSession extends events.EventEmitter {
   //
 
   /**
+   * Change the selected frame. Select a different frame framenum on the stack.
+   *
+   * @param options.frameLevel Stack index of the frame for which to retrieve locals,
+   *                           zero for the innermost frame, one for the frame from which the call
+   *                           to the innermost frame originated, etc. 
+   */
+  selectStackFrame(
+    options?: {frameLevel?: number }): Promise<void> {
+    return this.executeCommand('stack-select-frame'+' '+options.frameLevel);
+  }
+
+  /**
    * Retrieves information about a stack frame.
    *
    * @param options.threadId The thread for which the stack depth should be retrieved,

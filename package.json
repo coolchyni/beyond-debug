@@ -1,7 +1,7 @@
 {
 	"name": "beyond-debug",
 	"displayName": "GDB Debugger - Beyond",
-	"version": "0.9.2",
+	"version": "0.9.3",
 	"publisher": "coolchyni",
 	"description": "Debugger with gdb for c,c++,freepascal,fortran and more.",
 	"author": {
@@ -70,6 +70,20 @@
 		"onDebug"
 	],
 	"contributes": {
+		"languages": [
+			{
+				"id": "pascal",
+				"aliases": [
+					"pascal"
+				],
+				"extensions": [
+					".pp",
+					".pas",
+					".lpr",
+					".dpr"
+				]
+			}
+		],
 		"breakpoints": [
 			{
 				"language": "c"
@@ -180,6 +194,11 @@
 									"type":"string"
 								}
 							},
+							"varUpperCase":{
+								"type":"boolean",
+								"description":"Convert all variables to uppercase. Used in case insensitive language, e.g. pascal.",
+								"default":false
+							},
 							"remote": {
 								"required": [
 									"enabled",
@@ -256,6 +275,11 @@
 								"items":{
 									"type":"string"
 								}
+							},
+							"varUpperCase":{
+								"type":"boolean",
+								"description":"Convert all variables to uppercase. Used in case insensitive language, e.g. pascal.",
+								"default":false
 							},
 							"cwd": {
 								"type": "string",

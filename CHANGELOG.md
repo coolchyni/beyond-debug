@@ -1,3 +1,8 @@
+## [0.9.3] -  2020-10-14
+### Added
+- Highlighting when an exception is triggered 
+### Fixed
+- Variable display is wrong after stackframe switched
 
 ## [0.9.2] -  2020-09-24
 ### Added
