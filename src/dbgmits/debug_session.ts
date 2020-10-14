@@ -167,6 +167,9 @@ export default class DebugSession extends events.EventEmitter {
       };
 
       if (!this.cleanupWasCalled) {
+        while(this.cmdQueue.length>0){
+          this.cmdQueue.pop();
+        }
         notifyDebugger ? this.enqueueCommand(new DebugCommand('gdb-exit', null, cleanup))
           : cleanup(null, null);
       };
