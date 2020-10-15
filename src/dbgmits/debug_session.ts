@@ -160,12 +160,13 @@ export default class DebugSession extends events.EventEmitter {
    */
   end(notifyDebugger: boolean = true): Promise<void> {
     return new Promise<void>((resolve, reject) => {
+      
       var cleanup = (err: Error, data: any) => {
         this.cleanupWasCalled = true;
         this.lineReader.close();
         err ? reject(err) : resolve();
       };
-
+      
       if (!this.cleanupWasCalled) {
         while(this.cmdQueue.length>0){
           this.cmdQueue.pop();
@@ -330,7 +331,7 @@ export default class DebugSession extends events.EventEmitter {
    * @param token Token to be prefixed to the command string (must consist only of digits).
    * @returns A promise that will be resolved when the command response is received.
    */
-  private executeCommand(command: string, token?: string): Promise<void> {
+  public executeCommand(command: string, token?: string): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       this.enqueueCommand(
         new DebugCommand(command, token, (err, data) => { err ? reject(err) : resolve(); })

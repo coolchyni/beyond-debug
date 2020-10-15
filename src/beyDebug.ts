@@ -210,6 +210,7 @@ export class BeyDebug extends DebugSession {
 			this.sendEvent(new StoppedEvent('function breakpoint', e.threadId));
 		});
 		this.dbgSession.on(dbg.EVENT_SIGNAL_RECEIVED, (e: dbg.ISignalReceivedEvent) => {
+			logger.log('signal_receive:'+e.signalCode);
 			let event=new StoppedEvent('exception', e.threadId,e.signalMeaning);
 			event.body['text']=e.signalMeaning;
 			event.body['description']=e.signalMeaning;
@@ -846,9 +847,11 @@ export class BeyDebug extends DebugSession {
 
 	protected async disconnectRequest(response: DebugProtocol.DisconnectResponse, args: DebugProtocol.DisconnectArguments, request?: DebugProtocol.Request) {
 		if (this._isRunning) {
-			this.dbgSession.pause();
+			await this.dbgSession.pause();
+	
 		}
-		await this.dbgSession.end(true);
+		await this.dbgSession.execNativeCommand('kill');
+		await this.dbgSession.stop();
 		this.sendResponse(response);
 	}
 
