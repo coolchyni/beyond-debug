@@ -1,3 +1,9 @@
+## [0.9.4] -  2020-10-15
+### Added
+- Use vscode terminal to show program's output on linux and macOS.
+### Fixed
+- Failure to set breakpoints during debugging multi-threaded programs on Linux 
+
 ## [0.9.3] -  2020-10-14
 ### Added
 - Highlighting when an exception is triggered 
