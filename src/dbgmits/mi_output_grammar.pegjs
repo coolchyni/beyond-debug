@@ -141,6 +141,8 @@ escape_char
   / 'n' { return '\n'; }
   / 'r' { return '\r'; }
   / 't' { return '\t'; }
+  / ""  { return "\\";}
+
 
 c_string_char
   = !('"' / '\\') . { return text(); }

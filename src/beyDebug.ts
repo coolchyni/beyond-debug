@@ -17,10 +17,13 @@ import * as vscode from 'vscode';
 import { BeyDbgSession } from './beyDbgSession';
 import { TerminalEscape, TE_Style } from './terminalEscape';
 import { TargetStopReason, IStackFrameVariablesInfo, IVariableInfo, IStackFrameInfo, IWatchInfo, IThreadInfo } from './dbgmits';
-import { watch } from 'fs';
+import { watch, unwatchFile } from 'fs';
 import { threadId } from 'worker_threads';
 import { exit } from 'process';
 import { log } from 'console';
+import { StringDecoder } from 'string_decoder';
+import * as iconv from 'iconv-lite';
+import { TextDecoder } from 'util';
 
 function timeout(ms: number) {
 	return new Promise(resolve => setTimeout(resolve, ms));
@@ -44,6 +47,7 @@ interface ILaunchRequestArguments extends DebugProtocol.LaunchRequestArguments {
 	cwd?: string;
 	commandsBeforeExec?:string[];
 	varUpperCase:boolean;
+	defaultStringCharset?:string;
 	remote?: {
 		enabled: boolean,
 		address: string,
@@ -62,6 +66,7 @@ interface IAttachRequestArguments extends DebugProtocol.AttachRequestArguments {
 	cwd?: string;
 	commandsBeforeExec?:string[];
 	varUpperCase:boolean;
+	defaultStringCharset?:string;
 }
 enum EMsgType {
 	info,	//black
@@ -98,6 +103,13 @@ export class BeyDebug extends DebugSession {
 	private dbgSession: BeyDbgSession;
 
 	private varUpperCase:boolean=false;
+
+	//current language  of debugged program
+	private language:string;
+
+	//default charset 
+	private defaultStringCharset?:string;
+	
 
 	private sendMsgToDebugConsole(msg: string, itype: EMsgType = EMsgType.info) {
 		let style = [TE_Style.Blue];
@@ -220,12 +232,6 @@ export class BeyDebug extends DebugSession {
 			this.sendEvent(new StoppedEvent('exception', e.threadId,e.exception));
 		});
 
-		 
-		
-		
-		
-
-
 		this.dbgSession.on(dbg.EVENT_TARGET_RUNNING, () => {
 
 		});
@@ -235,6 +241,57 @@ export class BeyDebug extends DebugSession {
 
 	}
 
+	private decodeString(c:dbg.IWatchInfo){
+
+		if (c.expressionType===undefined){
+			return ;
+		}
+		if (this.defaultStringCharset){
+			switch (this.language) {
+				case 'c++':
+					if(c.expressionType.endsWith('char *') ){
+						let val=c.value;
+						
+						val=val.replace(/\\(\d+)/g,(s,args)=>{
+							let num= parseInt( args,8);
+							return String.fromCharCode(num);
+						});
+						if (val.endsWith("'")){
+							val=val.substring(0,val.length-1);
+						}
+
+						let bf=val.split('').map((e)=>{return e.charCodeAt(0);});
+
+						c.value=iconv.decode(Buffer.from(bf),this.defaultStringCharset);
+					}
+					break;
+				case 'pascal':
+					if(c.expressionType==='ANSISTRING'){
+						let val=c.value;
+						val=val.replace(/0x.*( ')/,(a,b)=>{return a.replace(b,' ');})
+								.replace(/''/g,"'")
+								.replace(/'#/g,"#");
+
+						val=val.replace(/#(\d+)/g,(s,args)=>{
+							let num= parseInt( args,10);
+							return String.fromCharCode(num);
+						});
+						if (val.endsWith("'")){
+							val=val.substring(0,val.length-1);
+						}
+
+						let bf=val.split('').map((e)=>{return e.charCodeAt(0);});
+						c.value=iconv.decode(Buffer.from(bf),this.defaultStringCharset);
+					}
+					break;
+				default:
+					break;
+			}
+			
+
+		} 
+		
+	}
 	/**
 	 * The 'initialize' request is the first request called by the frontend
 	 * to interrogate the features the debug adapter provides.
@@ -274,9 +331,14 @@ export class BeyDebug extends DebugSession {
 
 		response.body.supportsTerminateThreadsRequest = true;
 
-
-		response.body.supportsReadMemoryRequest = false;
-
+		
+		response.body.supportsSetVariable=true;
+		response.body.supportsSetExpression=true;
+		response.body.supportsClipboardContext=true;
+		
+		response.body.supportsReadMemoryRequest = true;
+		//todo
+		response.body.supportsExceptionInfoRequest=false;
 		this.sendResponse(response);
 
 		// since this debug adapter can accept configuration requests like 'setBreakpoint' at any time,
@@ -301,7 +363,10 @@ export class BeyDebug extends DebugSession {
 
 	protected async launchRequest(response: DebugProtocol.LaunchResponse, args: ILaunchRequestArguments) {
 
+		
 		vscode.commands.executeCommand('workbench.panel.repl.view.focus');
+		this.defaultStringCharset=args.defaultStringCharset;
+
 		// make sure to 'Stop' the buffered logging if 'trace' is not set
 
 		// wait until configuration has finished (and configurationDoneRequest has been called)
@@ -419,13 +484,29 @@ export class BeyDebug extends DebugSession {
 			vscode.window.showErrorMessage("Failed to start the debugger." + e.message);
 			this.sendEvent(new TerminatedEvent(false));
 		});
-
+		let checklang=(out:string)=>
+		{
+			if (out.indexOf('language')>0)
+			{
+				let m=out.match('currently (.*)?"') ;
+				if ( m!==null){
+					this.language=m[1];
+				}
+				this.dbgSession.off(dbg.EVENT_DBG_CONSOLE_OUTPUT,checklang);
+			}
+			
+		};
+		this.dbgSession.on(dbg.EVENT_DBG_CONSOLE_OUTPUT,checklang);
+		await this.dbgSession.execNativeCommand('show language');
+	
 		this.sendResponse(response);
 	}
 
 	protected async attachRequest(response: DebugProtocol.AttachResponse, args: IAttachRequestArguments) {
 
 		vscode.commands.executeCommand('workbench.panel.repl.view.focus');
+		this.defaultStringCharset=args.defaultStringCharset;
+		
 		// wait until configuration has finished (and configurationDoneRequest has been called)
 		this.dbgSession.startIt(args.debuggerPath, args.debuggerArgs);
 		await this._configurationDone.wait(1001);
@@ -568,6 +649,7 @@ export class BeyDebug extends DebugSession {
 			scopes: [
 				{
 					name: "Locals",
+					presentationHint:"locals",
 					variablesReference: this._variableHandles.create("locals::"),
 					expensive: false
 				},
@@ -587,6 +669,7 @@ export class BeyDebug extends DebugSession {
 			for await (const w of this._locals.watch) {
 				await this.dbgSession.removeWatch(w.id).catch(() => { });
 			}
+			this._locals.watch=[];
 			let vals = await this.dbgSession.getStackFrameVariables(dbg.VariableDetailLevel.Simple, {
 				frameLevel: this._currentFrameLevel,
 				threadId: this._currentThreadId?.id
@@ -604,19 +687,19 @@ export class BeyDebug extends DebugSession {
 				if (!c) {
 					continue;
 				}
+				
 				this._locals.watch.push(c);
 
 				let vid = 0;
 				if (c.childCount > 0) {
-					vid = this._variableHandles.create(c.id);
+				  vid = this._variableHandles.create(c.id);
 				}
-
+				this.decodeString(c);
 				variables.push({
 					name: v.name,
 					type: c.expressionType,
 					value: c.value,
-					variablesReference: vid,
-					//memoryReference:c.expressionType.endsWith('*')?c.value:null
+					variablesReference: vid
 				});
 
 			}
@@ -627,10 +710,11 @@ export class BeyDebug extends DebugSession {
 			});
 
 			for await (const c of childs) {
-				let vid = 0;
-				if (c.childCount > 0) {
+				 let vid = 0;
+				 if (c.childCount > 0) {
 					vid = this._variableHandles.create(c.id);
-				}
+			  	 }
+				this.decodeString(c);
 
 				variables.push({
 					name: c.expression,
@@ -649,7 +733,35 @@ export class BeyDebug extends DebugSession {
 		};
 		this.sendResponse(response);
 	}
-
+	protected async setVariableRequest(response: DebugProtocol.SetVariableResponse, args: DebugProtocol.SetVariableArguments, request?: DebugProtocol.Request)
+    {
+		let ret=args.value;
+		let vid= this._variableHandles.get( args.variablesReference);
+		try {
+			if (vid==='locals::'){
+				let watch=await this.dbgSession.addWatch(args.name);
+				ret=await this.dbgSession.setWatchValue(watch.id,args.value);
+				this.dbgSession.removeWatch(watch.id);
+			}else{
+				let childs=await this.dbgSession.getWatchChildren(vid,{ detail: dbg.VariableDetailLevel.Simple });
+				let watch=childs.find((value,index,obj)=>{
+					return value.expression===args.name;
+				});
+				if (watch){
+					ret=await this.dbgSession.setWatchValue(watch.id,args.value);	
+				}
+	
+			}
+			response.body={
+				value:ret
+			};
+		} catch (error) {
+			response.success=false;
+		}
+		
+	
+		this.sendResponse(response);
+	}
 	protected continueRequest(response: DebugProtocol.ContinueResponse, args: DebugProtocol.ContinueArguments): void {
 		this.dbgSession.resumeAllInferiors(false);
 		this.sendResponse(response);
@@ -729,7 +841,7 @@ export class BeyDebug extends DebugSession {
 			if (watch.childCount > 0) {
 				vid = this._variableHandles.create(watch.id);
 			}
-
+			this.decodeString(watch);
 			response.body = {
 				result: watch.value,
 				type: watch.expressionType,
@@ -858,5 +970,26 @@ export class BeyDebug extends DebugSession {
 	protected async  restartFrameRequest(response: DebugProtocol.RestartFrameResponse, args: DebugProtocol.RestartFrameArguments, request?: DebugProtocol.Request){
 		logger.log(args.frameId.toString());
 	}
+	protected exceptionInfoRequest(response: DebugProtocol.ExceptionInfoResponse, args: DebugProtocol.ExceptionInfoArguments, request?: DebugProtocol.Request): void{
+		
+		//todo 
+		// response.body={
+		// 	exceptionId:'1',
+		// 	description:'test',
+		// 	breakMode:'always',
+		// 	details:{
+		// 		message:'test2'
+		// 	}
+
+		// };
+		this.sendResponse(response);
+	}
+
+	protected readMemoryRequest(response: DebugProtocol.ReadMemoryResponse, args: DebugProtocol.ReadMemoryArguments, request?: DebugProtocol.Request){
+		
+		this.sendResponse(response);
+
+	}
    
+    
 }

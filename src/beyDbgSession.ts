@@ -30,10 +30,10 @@ export class BeyDbgSession extends DebugSession {
     }else if (process.platform==='linux' || process.platform==='darwin'){
       //create terminal and it's tty
       let tm=vscode.window.terminals.find((value,index,obj)=>{
-        return value.name==='HiDebug';
+        return value.name==='BeyondDebug';
       });
       if(!tm){
-         tm=vscode.window.createTerminal('HiDebug');
+         tm=vscode.window.createTerminal('BeyondDebug');
       }
       tm.show(true);
       let pid=await tm.processId;
@@ -67,7 +67,7 @@ export class BeyDbgSession extends DebugSession {
       try {
         
         if(!kill(this.debuggerProcess.pid,"SIGINT")){
-          this.logger.error("Send SIGINT failue!");
+            this.logger.error("Send SIGINT failue!");
           reject();  
         }
       } catch (error) {

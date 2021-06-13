@@ -23,8 +23,7 @@ import { LogLevel } from 'vscode-debugadapter/lib/logger';
 const runMode:   'server'  | 'inline' = 'inline';
 
 export function activate(context: vscode.ExtensionContext) {
-	let outchannel=vscode.window.createOutputChannel('HiDebug');
-	
+	let outchannel=vscode.window.createOutputChannel('BeyondDebug');
 	logger.init((e)=>{
 		outchannel.appendLine(e.body.output);
 	},undefined,true);

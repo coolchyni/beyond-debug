@@ -1,5 +1,10 @@
+## [0.9.5] -  2021-06-13
+### Fixed
+- Parse failure on some data whith \. 
+
 ## [0.9.4] -  2020-10-15
 ### Added
+- Supports set variable value
 - Use vscode terminal to show program's output on linux and macOS.
 ### Fixed
 - Failure to set breakpoints during debugging multi-threaded programs on Linux 
