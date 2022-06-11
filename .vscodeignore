@@ -1,8 +1,10 @@
-.vscode/**/*
+.vscode/**
 .gitignore
-.travis.yml
-appveyor.yml
-src/**/*
-out/test/**/*
-**/*.js.map
-media/**/*
+media
+node_modules
+src
+.github
+**/tsconfig.json
+**/.eslintrc.json
+**/*.map
+**/*.ts

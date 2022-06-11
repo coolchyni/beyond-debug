@@ -66,10 +66,11 @@ export class BeyDbgSession extends DebugSession {
     return new Promise<void>((resolve, reject) => {
       try {
         
-        if(!kill(this.debuggerProcess.pid,"SIGINT")){
-            this.logger.error("Send SIGINT failue!");
-          reject();  
-        }
+        kill(this.debuggerProcess.pid,"SIGINT");
+        // if(!){
+        //     this.logger.error("Send SIGINT failue!");
+        //   reject();  
+        // }
       } catch (error) {
         this.logger.error(error);
         reject();

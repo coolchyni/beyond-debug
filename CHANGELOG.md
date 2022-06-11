@@ -1,3 +1,8 @@
+## [0.9.6] -  2021-06-15
+### Added
+- Add `View Memory` Command. Will open memery data in `Microsoft Hex Editor` if it installed.
+- Add `View Memory` menu in editor on debuging.
+
 ## [0.9.5] -  2021-06-13
 ### Fixed
 - Parse failure on some data whith \. 

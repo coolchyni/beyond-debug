@@ -126,9 +126,13 @@ in `launch.json`
 ## Use gdb's native command
 You can use all the GDB commands from the debug console. Just like in the shell.
 
+## View Memory
+You can view memory data on debug console or `Microsoft Hex Editor` if it installed.
+Rignt click in editor on deubgging or use command `byeond:View Memory`.
+If no content is selected, you can input address like this:[address or variable]:[address length (default:100) ], e.g. `0x1111:12` or `0x1111` or `va:123` or `s.c_str():100` ...
+
 ## Todo List
 * PickProcess for attach
 * Add i18n supports
-* Memory view 
 * lldb-mi support
 

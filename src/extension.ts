@@ -11,29 +11,37 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { platform } from 'process';
 import { WorkspaceFolder, DebugConfiguration, ProviderResult, CancellationToken } from 'vscode';
-import {logger} from 'vscode-debugadapter';
+import { logger } from 'vscode-debugadapter';
 
 import { BeyDebug } from './beyDebug';
 import { LogLevel } from 'vscode-debugadapter/lib/logger';
+import { TextEncoder } from 'util';
+import { pathToFileURL } from 'url';
+import * as memview from './beyMemoryView';
 
 /*
  * The compile time flag 'runMode' controls how the debug adapter is run.
  * Please note: the test suite only supports 'external' mode.
  */
-const runMode:   'server'  | 'inline' = 'inline';
-
+const runMode: 'server' | 'inline' = 'inline';
+const byMemoryViewSchema = 'bymv';
 export function activate(context: vscode.ExtensionContext) {
-	let outchannel=vscode.window.createOutputChannel('BeyondDebug');
-	logger.init((e)=>{
+	let outchannel = vscode.window.createOutputChannel('BeyondDebug');
+	logger.init((e) => {
 		outchannel.appendLine(e.body.output);
-	},undefined,true);
+	}, undefined, true);
 	logger.setup(LogLevel.Log);
-	
+
 	// register a configuration provider for 'hi-gdb' debug type
 	const provider = new HiDebugConfigurationProvider();
 	context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('by-gdb', provider));
 
 	
+	context.subscriptions.push(
+		vscode.commands.registerTextEditorCommand('bydebug.ViewMemory',memview.cmdViewMemoryWithHexEdit)
+	);
+
+
 	// debug adapters can be run in different ways by using a vscode.DebugAdapterDescriptorFactory:
 	let factory: vscode.DebugAdapterDescriptorFactory;
 	switch (runMode) {
@@ -71,12 +79,12 @@ class HiDebugConfigurationProvider implements vscode.DebugConfigurationProvider 
 		// if launch.json is missing or empty
 		if (!config.type && !config.request && !config.name) {
 			const editor = vscode.window.activeTextEditor;
-			if (editor)  {
+			if (editor) {
 				config.type = 'by-gdb';
 				config.name = 'Launch(gdb)';
 				config.request = 'launch';
 				config.program = '${fileBasenameNoExtension}';
-				config['cwd']='${workspaceFolder}';
+				config['cwd'] = '${workspaceFolder}';
 			}
 		}
 
@@ -122,6 +130,8 @@ class HiDebugAdapterServerDescriptorFactory implements vscode.DebugAdapterDescri
 class InlineDebugAdapterFactory implements vscode.DebugAdapterDescriptorFactory {
 
 	createDebugAdapterDescriptor(_session: vscode.DebugSession): ProviderResult<vscode.DebugAdapterDescriptor> {
-		return new vscode.DebugAdapterInlineImplementation(new BeyDebug());
+		let dbg=new BeyDebug();
+		memview.setCurrentDebugSession(dbg.getBeyDbgSession());
+		return new vscode.DebugAdapterInlineImplementation(dbg);
 	}
 }

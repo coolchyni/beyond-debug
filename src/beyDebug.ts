@@ -380,8 +380,8 @@ export class BeyDebug extends DebugSession {
 		}
 		this.varUpperCase=args.varUpperCase;
 		if (args.commandsBeforeExec){
-			for await (const cmd of args.commandsBeforeExec) {
-				this.dbgSession.execNativeCommand(cmd)
+			for  (const cmd of args.commandsBeforeExec) {
+				await this.dbgSession.execNativeCommand(cmd)
 				.catch((e)=>{
 					this.sendMsgToDebugConsole(e.message,EMsgType.error);
 				});
@@ -437,7 +437,7 @@ export class BeyDebug extends DebugSession {
 				}
 				if (args.remote.transfer) {
 					this.sendMsgToDebugConsole("\n");
-					for await (const trans of args.remote.transfer) {
+					for (const trans of args.remote.transfer) {
 
 						let id = "put" + trans.from;
 						const startEvent: DebugProtocol.ProgressStartEvent = new ProgressStartEvent(id, `upload ${trans.from}`);
@@ -518,8 +518,8 @@ export class BeyDebug extends DebugSession {
 		}
 		this.varUpperCase=args.varUpperCase;
 		if (args.commandsBeforeExec){
-			for await (const cmd of args.commandsBeforeExec) {
-				this.dbgSession.execNativeCommand(cmd).catch((e)=>{
+			for (const  cmd of args.commandsBeforeExec) {
+				await this.dbgSession.execNativeCommand(cmd).catch((e)=>{
 					this.sendMsgToDebugConsole(e.message,EMsgType.error);
 				});
 			}
@@ -626,8 +626,8 @@ export class BeyDebug extends DebugSession {
 		const frames = await this.dbgSession.getStackFrames({ lowFrame: startFrame, highFrame: endFrame });
 
 		//remove watchs 
-		for await (const watch of this._watchs) {
-			this.dbgSession.removeWatch(watch[1].id).catch(() => { });;
+		for (const watch of this._watchs) {
+			await this.dbgSession.removeWatch(watch[1].id).catch(() => { });;
 		}
 		this._watchs.clear();
 
@@ -666,7 +666,7 @@ export class BeyDebug extends DebugSession {
 
 
 		if (id === 'locals::') {
-			for await (const w of this._locals.watch) {
+			for (const w of this._locals.watch) {
 				await this.dbgSession.removeWatch(w.id).catch(() => { });
 			}
 			this._locals.watch=[];
@@ -676,7 +676,7 @@ export class BeyDebug extends DebugSession {
 			});
 			this._locals.vars = vals.args.concat(vals.locals);
 
-			for await (const v of this._locals.vars) {
+			for (const v of this._locals.vars) {
 
 				let c = await this.dbgSession.addWatch(v.name, {
 					frameLevel: this._currentFrameLevel,
@@ -709,7 +709,7 @@ export class BeyDebug extends DebugSession {
 				return [];
 			});
 
-			for await (const c of childs) {
+			for (const c of childs) {
 				 let vid = 0;
 				 if (c.childCount > 0) {
 					vid = this._variableHandles.create(c.id);
@@ -991,5 +991,8 @@ export class BeyDebug extends DebugSession {
 
 	}
    
+	public getBeyDbgSession():BeyDbgSession{
+		return this.dbgSession;
+	} 
     
 }

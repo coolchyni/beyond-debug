@@ -141,7 +141,7 @@ export default class DebugSession extends events.EventEmitter {
       try {
         this.parseDebbugerOutput(line);
       } catch (error) {
-        logger.error(error);
+        //logger.error(error);
       }
 
     });

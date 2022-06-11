@@ -1,7 +1,7 @@
 {
 	"name": "beyond-debug",
 	"displayName": "GDB Debugger - Beyond",
-	"version": "0.9.5",
+	"version": "0.9.6",
 	"publisher": "coolchyni",
 	"description": "Debugger with gdb for c,c++,freepascal,fortran and more.",
 	"author": {
@@ -33,27 +33,27 @@
 		"url": "https://coolchyni@dev.azure.com/coolchyni/byend-debug/_git/byend-debug"
 	},
 	"scripts": {
-		"vscode:prepublish": "yarn run compile",
 		"compile": "tsc -p ./",
 		"lint": "eslint src --ext ts",
 		"watch": "tsc -watch -p ./",
-		"pretest": "yarn run compile && yarn run lint",
-		
-		"test": "node ./out/test/runTest.js",
 		"package": "vsce package",
 		"publish": "vsce publish",
-		"peg": "pegjs -o ./out/dbgmits/mi_output_parser.js src/dbgmits/mi_output_grammar.pegjs"
+		"peg": "pegjs -o ./out/mi_output_parser.js src/dbgmits/mi_output_grammar.pegjs",
+		"vscode:prepublish": "npm run -S esbuild-base -- --minify",
+		"esbuild-base": "rimraf out &&  esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs  --platform=node",
+		"esbuild": "npm run -S esbuild-base -- --sourcemap",
+		"esbuild-watch": "npm run -S esbuild-base -- --sourcemap --watch"
 	},
 	"dependencies": {
 		"await-notify": "1.0.1",
 		"vscode-debugadapter": "1.41.1",
-		"iconv-lite":"0.6.2"
+		"iconv-lite": "0.6.2"
 	},
 	"devDependencies": {
-		"@types/iconv-lite":"^0.0.1",
+		"@types/iconv-lite": "^0.0.1",
 		"@types/glob": "^7.1.3",
 		"@types/mocha": "^8.0.0",
-		"@types/node": "^14.0.27",
+		"@types/node": "^13.13.52",
 		"@types/vscode": "^1.44.0",
 		"@typescript-eslint/eslint-plugin": "^3.8.0",
 		"@typescript-eslint/parser": "^3.8.0",
@@ -65,25 +65,28 @@
 		"typescript": "^3.8.3",
 		"vsce": "1.78.0",
 		"vscode-debugadapter-testsupport": "1.41.0",
-		"vscode-test": "1.3.0"
+		"vscode-test": "1.3.0",
+		"esbuild": "^0.14.23",
+		"rimraf": "^3.0.2"
 	},
 	"main": "./out/extension",
 	"activationEvents": [
 		"onDebug"
 	],
 	"contributes": {
-		"commands":[
+		"commands": [
 			{
-				"title": "Set String Encoding",
-				"command": "beydebug.SetStringEncoding",
-				"icon":"$(symbol-parameter)",
+				"title": "View Memory",
+				"command": "bydebug.ViewMemory",
+				"icon": "$(symbol-parameter)",
 				"category": "byeond"
 			}
 		],
 		"menus": {
-			"debug/callstack/context": [
+			"editor/context": [
 				{
-					"command": "beydebug.SetStringEncoding"
+					"command": "bydebug.ViewMemory",
+					"when": "inDebugMode&&debugType==by-gdb"
 				}
 			]
 		},
@@ -195,32 +198,31 @@
 								"description": "Path of executable for debugging symbols.",
 								"default": "${workspaceFolder}/${fileBasenameNoExtension}"
 							},
-							"programArgs":{
-								"type":"string",
-								"description":"Set the inferior program arguments, to be used in the program run"
+							"programArgs": {
+								"type": "string",
+								"description": "Set the inferior program arguments, to be used in the program run"
 							},
 							"cwd": {
 								"type": "string",
 								"description": "Current path of local.",
 								"default": "${workspaceRoot}"
 							},
-							"commandsBeforeExec":{
-								"type":"array",
-								"description":"Commands run before execution. Can be any gdb or gdb-mi command.",
-								"items":{
-									"type":"string"
+							"commandsBeforeExec": {
+								"type": "array",
+								"description": "Commands run before execution. Can be any gdb or gdb-mi command.",
+								"items": {
+									"type": "string"
 								}
 							},
-							"varUpperCase":{
-								"type":"boolean",
-								"description":"Convert all variables to uppercase. Used in case insensitive language, e.g. pascal.",
-								"default":false
+							"varUpperCase": {
+								"type": "boolean",
+								"description": "Convert all variables to uppercase. Used in case insensitive language, e.g. pascal.",
+								"default": false
 							},
-							"defaultStringCharset":{
-								"type":"string",
-								"description":"Set varialbe charset of string on display",
-								"default":""
-							
+							"defaultStringCharset": {
+								"type": "string",
+								"description": "Set varialbe charset of string on display",
+								"default": ""
 							},
 							"remote": {
 								"required": [
@@ -292,23 +294,22 @@
 								"description": "Path of executable for debugging symbols.",
 								"default": "${workspaceFolder}/${fileBasenameNoExtension}"
 							},
-							"commandsBeforeExec":{
-								"type":"array",
-								"description":"Commands run before execution. Can be any gdb or gdb-mi command.",
-								"items":{
-									"type":"string"
+							"commandsBeforeExec": {
+								"type": "array",
+								"description": "Commands run before execution. Can be any gdb or gdb-mi command.",
+								"items": {
+									"type": "string"
 								}
 							},
-							"varUpperCase":{
-								"type":"boolean",
-								"description":"Convert all variables to uppercase. Used in case insensitive language, e.g. pascal.",
-								"default":false
+							"varUpperCase": {
+								"type": "boolean",
+								"description": "Convert all variables to uppercase. Used in case insensitive language, e.g. pascal.",
+								"default": false
 							},
-							"defaultStringCharset":{
-								"type":"string",
-								"description":"Set varialbe charset of string on display",
-								"default":""
-							
+							"defaultStringCharset": {
+								"type": "string",
+								"description": "Set varialbe charset of string on display",
+								"default": ""
 							},
 							"cwd": {
 								"type": "string",
@@ -346,7 +347,6 @@
 							"name": "Launch(gdb)",
 							"program": "^\"\\${fileBasenameNoExtension}\"",
 							"cwd": "^\"\\${workspaceRoot}\""
-
 						}
 					},
 					{
@@ -378,7 +378,6 @@
 							}
 						}
 					}
-					
 				]
 			}
 		]
