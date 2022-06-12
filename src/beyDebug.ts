@@ -241,10 +241,10 @@ export class BeyDebug extends DebugSession {
 
 	}
 
-	private decodeString(c:dbg.IWatchInfo){
+	private decodeString(c:dbg.IWatchInfo):string{
 
 		if (c.expressionType===undefined){
-			return ;
+			return '';
 		}
 		if (this.defaultStringCharset){
 			switch (this.language) {
@@ -262,26 +262,23 @@ export class BeyDebug extends DebugSession {
 
 						let bf=val.split('').map((e)=>{return e.charCodeAt(0);});
 
-						c.value=iconv.decode(Buffer.from(bf),this.defaultStringCharset);
+						return iconv.decode(Buffer.from(bf),this.defaultStringCharset);
 					}
 					break;
 				case 'pascal':
 					if(c.expressionType==='ANSISTRING'){
 						let val=c.value;
-						val=val.replace(/0x.*( ')/,(a,b)=>{return a.replace(b,' ');})
-								.replace(/''/g,"'")
-								.replace(/'#/g,"#");
+						//remove '' from str
+						const regexp = /'(.*?)(?<!')'(?!')/g;
+						val=val.replace(regexp,(a,b)=>{return b;}).replace(/''/g,"'");
 
 						val=val.replace(/#(\d+)/g,(s,args)=>{
 							let num= parseInt( args,10);
 							return String.fromCharCode(num);
 						});
-						if (val.endsWith("'")){
-							val=val.substring(0,val.length-1);
-						}
 
 						let bf=val.split('').map((e)=>{return e.charCodeAt(0);});
-						c.value=iconv.decode(Buffer.from(bf),this.defaultStringCharset);
+						return iconv.decode(Buffer.from(bf),this.defaultStringCharset);
 					}
 					break;
 				default:
@@ -290,6 +287,7 @@ export class BeyDebug extends DebugSession {
 			
 
 		} 
+		return c.value;
 		
 	}
 	/**
@@ -694,11 +692,11 @@ export class BeyDebug extends DebugSession {
 				if (c.childCount > 0) {
 				  vid = this._variableHandles.create(c.id);
 				}
-				this.decodeString(c);
+				;
 				variables.push({
 					name: v.name,
 					type: c.expressionType,
-					value: c.value,
+					value: this.decodeString(c),
 					variablesReference: vid
 				});
 
@@ -714,12 +712,11 @@ export class BeyDebug extends DebugSession {
 				 if (c.childCount > 0) {
 					vid = this._variableHandles.create(c.id);
 			  	 }
-				this.decodeString(c);
-
+			
 				variables.push({
 					name: c.expression,
 					type: c.expressionType,
-					value: c.value,
+					value: this.decodeString(c),
 					variablesReference: vid
 				});
 
@@ -841,9 +838,8 @@ export class BeyDebug extends DebugSession {
 			if (watch.childCount > 0) {
 				vid = this._variableHandles.create(watch.id);
 			}
-			this.decodeString(watch);
 			response.body = {
-				result: watch.value,
+				result: this.decodeString(watch),
 				type: watch.expressionType,
 				variablesReference: vid
 			};

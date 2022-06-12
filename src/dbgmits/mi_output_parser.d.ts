@@ -6,7 +6,7 @@
 
 import { RecordType } from './mi_output';
 
-declare module MIOutputParser {
+declare module mi_output_parser {
 
   export interface Record {
     token?: string;
@@ -28,4 +28,4 @@ declare module MIOutputParser {
 
 } // module MIOutputParser
 
-export = MIOutputParser;
+export = mi_output_parser;

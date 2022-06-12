@@ -18,7 +18,6 @@ import { LogLevel } from 'vscode-debugadapter/lib/logger';
 import { TextEncoder } from 'util';
 import { pathToFileURL } from 'url';
 import * as memview from './beyMemoryView';
-
 /*
  * The compile time flag 'runMode' controls how the debug adapter is run.
  * Please note: the test suite only supports 'external' mode.
