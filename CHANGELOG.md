@@ -1,3 +1,9 @@
+## [0.9.7] -  2022-06-13
+### Added
+- Support of display TString.Strings for Free pascal.
+### Fixed
+- The utf8 string is displayed incorrectly.
+
 ## [0.9.6] -  2021-06-15
 ### Added
 - Add `View Memory` Command. Will open memery data in `Microsoft Hex Editor` if it installed.

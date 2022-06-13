@@ -716,12 +716,23 @@ export class BeyDebug extends DebugSession {
 					if(m!=null){
 						val=m[1];
 					}
-					variables.push({
-						name: '['+i+']',
-						type: 'string',
-						value: this.decodeString(val,'ANSISTRING'),
-						variablesReference: 0
-					});
+					if(i>100){
+						variables.push({
+							name: '[.]',
+							type: 'string',
+							value: '...',
+							variablesReference: 0
+						});
+						break;
+					}else{
+						variables.push({
+							name: '['+i+']',
+							type: 'string',
+							value: this.decodeString(val,'ANSISTRING'),
+							variablesReference: 0
+						});
+					}
+					
 				}
 
 			  //let s=await	this.dbgSession.evaluateExpression(id.replace('**items**',''));
