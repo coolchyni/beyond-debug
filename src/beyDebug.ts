@@ -241,16 +241,16 @@ export class BeyDebug extends DebugSession {
 
 	}
 
-	private decodeString(c:dbg.IWatchInfo):string{
+	private decodeString(value?:string,expressionType?:string):string{
 
-		if (c.expressionType===undefined){
+		if (expressionType===undefined){
 			return '';
 		}
 		if (this.defaultStringCharset){
 			switch (this.language) {
 				case 'c++':
-					if(c.expressionType.endsWith('char *') ){
-						let val=c.value;
+					if(expressionType.endsWith('char *') ){
+						let val=value;
 						
 						val=val.replace(/\\(\d+)/g,(s,args)=>{
 							let num= parseInt( args,8);
@@ -266,8 +266,8 @@ export class BeyDebug extends DebugSession {
 					}
 					break;
 				case 'pascal':
-					if(c.expressionType==='ANSISTRING'){
-						let val=c.value;
+					if(expressionType==='ANSISTRING'){
+						let val=value;
 						//remove '' from str
 						const regexp = /'(.*?)(?<!')'(?!')/g;
 						val=val.replace(regexp,(a,b)=>{return b;}).replace(/''/g,"'");
@@ -287,7 +287,7 @@ export class BeyDebug extends DebugSession {
 			
 
 		} 
-		return c.value;
+		return value;
 		
 	}
 	/**
@@ -696,33 +696,73 @@ export class BeyDebug extends DebugSession {
 				variables.push({
 					name: v.name,
 					type: c.expressionType,
-					value: this.decodeString(c),
+					value: this.decodeString(c.value,c.expressionType),
 					variablesReference: vid
 				});
 
 			}
 
 		} else {
-			let childs = await this.dbgSession.getWatchChildren(id, { detail: dbg.VariableDetailLevel.All }).catch((e) => {
-				return [];
-			});
+		
+			if(id.startsWith('**FLIST**')){  //pascal TStringList
+				let vid=id.replace('**FLIST**','');
+				let strs=vid.split(':');
+				let cnt=strs[strs.length-1];
+				
+				for(var i=0;i<Number.parseInt(cnt);i++){
+					let exp=strs[0]+'.FLIST^['+i+']';
+					let val=await this.dbgSession.evaluateExpression(exp);
+					let m=val.match(/'(.*?)'/);
+					if(m!=null){
+						val=m[1];
+					}
+					variables.push({
+						name: '['+i+']',
+						type: 'string',
+						value: this.decodeString(val,'ANSISTRING'),
+						variablesReference: 0
+					});
+				}
 
-			for (const c of childs) {
-				 let vid = 0;
-				 if (c.childCount > 0) {
-					vid = this._variableHandles.create(c.id);
-			  	 }
-			
-				variables.push({
-					name: c.expression,
-					type: c.expressionType,
-					value: this.decodeString(c),
-					variablesReference: vid
+			  //let s=await	this.dbgSession.evaluateExpression(id.replace('**items**',''));
+			}else
+			{
+				let childs = await this.dbgSession.getWatchChildren(id, { detail: dbg.VariableDetailLevel.All }).catch((e) => {
+					return [];
 				});
-
+				for (const c of childs) {
+					let vid = 0;
+					if(this.language=='pascal'){
+						if(c.expressionType=='PSTRINGITEMLIST' || c.expressionType=='TANSISTRINGITEMLIST'){ //for pascal TStringList
+							let exp= await this.dbgSession.getWatchExpression(id);
+							let cnt=await this.dbgSession.getWatchValue(id+'.FCOUNT');
+							exp=exp.replace('->','.');
+							vid = this._variableHandles.create('**FLIST**'+exp+':'+cnt);
+							variables.push({
+								name:'Strings',
+								type:'array',
+								value:'Strings['+cnt+']',
+								variablesReference:vid
+								//evaluateName:id+'.FLIST^[0]'
+							});
+							continue;
+						 }
+					}
+					
+					if (c.childCount > 0) {
+					   vid = this._variableHandles.create(c.id);
+					}
+				   
+				   variables.push({
+					   name: c.expression,
+					   type: c.expressionType,
+					   value: this.decodeString(c.value,c.expressionType),
+					   variablesReference: vid
+				   });
+   
+			   }
 			}
-
-
+			
 		}
 
 		response.body = {
@@ -839,7 +879,7 @@ export class BeyDebug extends DebugSession {
 				vid = this._variableHandles.create(watch.id);
 			}
 			response.body = {
-				result: this.decodeString(watch),
+				result: this.decodeString(watch.value,watch.expressionType),
 				type: watch.expressionType,
 				variablesReference: vid
 			};
