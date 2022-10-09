@@ -34,5 +34,30 @@ jobs:
       - name: Build with esbuild
         run: esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs  --platform=node
 
-      - name: Publish
-        run: vsce publish -p ${{ secrets.VSCE_PAT }}
+      #
+      # Package and Upload Extension
+      #
+      # NOTE:
+      # The "vscode:prepublish" script in package.json will be executed to compile the extension
+      # prior to packaging.
+      #
+      - name: Package Extension into .vsix file
+        id: asset
+        shell: bash
+        run: >
+          vsce package;
+          echo ::set-output name=vsix_path::$(ls *.vsix)
+          
+      - name: Upload .vsix file to Github as release asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ${{ steps.asset.outputs.vsix_path }}
+          asset_name: ${{ steps.asset.outputs.vsix_path }}
+          asset_content_type: application/zip
+
+
+      #- name: Publish
+      #  run: vsce publish -p ${{ secrets.VSCE_PAT }}
