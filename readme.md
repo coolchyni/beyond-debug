@@ -23,7 +23,7 @@ It implemented through the GDB’s Machine Interface(MI).
 * Install the **Beyond Debug** extension in VS Code.
 * Open your project
 * Switch to the debug viewlet and press the gear dropdown.
-* Select the debug environment "BeyondDebug(gdb)".
+* Select the debug environment "GDB(Beyond)".
 * Press the green 'play' button to start debugging.
 
 You can now debugging your program.
