@@ -29,7 +29,7 @@ jobs:
         run: npm i -g vsce
         
       - name: Build with esbuild
-        run: rimraf out &&  esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs  --platform=node
+        run: esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs  --platform=node
 
       - name: Publish
         run: vsce publish -p ${{ secrets.VSCE_PAT }}
