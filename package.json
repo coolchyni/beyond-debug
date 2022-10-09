@@ -1,7 +1,7 @@
 {
 	"name": "beyond-debug",
 	"displayName": "GDB Debugger - Beyond",
-	"version": "0.9.7",
+	"version": "0.9.8",
 	"publisher": "coolchyni",
 	"description": "Debugger with gdb for c,c++,freepascal,fortran and more.",
 	"author": {
@@ -30,7 +30,7 @@
 	"private": true,
 	"repository": {
 		"type": "git",
-		"url": "https://coolchyni@dev.azure.com/coolchyni/byend-debug/_git/byend-debug"
+		"url": "https://github.com/coolchyni/beyond-debug"
 	},
 	"scripts": {
 		"compile": "tsc -p ./",
@@ -94,20 +94,6 @@
 				}
 			]
 		},
-		"languages": [
-			{
-				"id": "pascal",
-				"aliases": [
-					"pascal"
-				],
-				"extensions": [
-					".pp",
-					".pas",
-					".lpr",
-					".dpr"
-				]
-			}
-		],
 		"breakpoints": [
 			{
 				"language": "c"
@@ -179,6 +165,12 @@
 				"label": "GDB(Beyond)",
 				"program": "./out/debugAdapter.js",
 				"runtime": "node",
+				"languages": [
+					"c",
+					"cpp",
+					"pascal",
+					"objectpascal"
+				],
 				"configurationAttributes": {
 					"launch": {
 						"required": [
