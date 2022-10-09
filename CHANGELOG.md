@@ -1,6 +1,10 @@
-## [0.9.7] -  2022-06-13
+## [0.9.7] -  2022-10-09
 ### Added
 - Support of display TString.Strings for Free pascal.
+- Support set breakpoint at runing on windows
+- Show thread id in call stack window
+- Pick process for attach
+
 ### Fixed
 - The utf8 string is displayed incorrectly.
 

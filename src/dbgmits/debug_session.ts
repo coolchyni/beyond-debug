@@ -1620,6 +1620,7 @@ export default class DebugSession extends events.EventEmitter {
       return output;
     }).catch((e) => {
       logger.error(e);
+      
       throw e;
 
     });

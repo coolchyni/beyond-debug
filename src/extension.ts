@@ -3,7 +3,7 @@
  *--------------------------------------------------------*/
 
 'use strict';
-
+import * as nls from 'vscode-nls';
 import * as Net from 'net';
 import * as vscode from 'vscode';
 import { randomBytes } from 'crypto';
@@ -24,13 +24,22 @@ import * as memview from './beyMemoryView';
  */
 const runMode: 'server' | 'inline' = 'inline';
 const byMemoryViewSchema = 'bymv';
+import * as util from "./util";
+import { NativeAttachItemsProviderFactory } from './nativeAttach';
+import { AttachItemsProvider, AttachPicker } from './attachToProcess';
 export function activate(context: vscode.ExtensionContext) {
+
+	// Activate Process Picker Commands
+	const attachItemsProvider: AttachItemsProvider = NativeAttachItemsProviderFactory.Get();
+	const attacher: AttachPicker = new AttachPicker(attachItemsProvider);
+	context.subscriptions.push(vscode.commands.registerCommand('extension.pickNativeProcess', () => attacher.ShowAttachEntries()));
+		
 	let outchannel = vscode.window.createOutputChannel('BeyondDebug');
 	logger.init((e) => {
 		outchannel.appendLine(e.body.output);
 	}, undefined, true);
 	logger.setup(LogLevel.Log);
-
+	util.setExtensionContext(context);
 	// register a configuration provider for 'hi-gdb' debug type
 	const provider = new HiDebugConfigurationProvider();
 	context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('by-gdb', provider));
@@ -57,9 +66,9 @@ export function activate(context: vscode.ExtensionContext) {
 	}
 
 	context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory('by-gdb', factory));
-	if ('dispose' in factory) {
-		context.subscriptions.push(factory);
-	}
+	// if ('dispose' in factory) {
+	// 	context.subscriptions.push(factory);
+	// }
 
 }
 
@@ -87,7 +96,7 @@ class HiDebugConfigurationProvider implements vscode.DebugConfigurationProvider 
 			}
 		}
 
-		if (!config.program) {
+		if (!config.program && config.request!='attach') {
 			return vscode.window.showInformationMessage("Cannot find a program to debug").then(_ => {
 				return undefined;	// abort launch
 			});

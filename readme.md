@@ -15,6 +15,7 @@ It implemented through the GDB’s Machine Interface(MI).
 * `gdbserver --multi` supported
 * transfer files from local to remote  
 * use native commands in debug console
+* attach to process
 
 ## Using the debugger
 
@@ -25,7 +26,7 @@ It implemented through the GDB’s Machine Interface(MI).
 * Select the debug environment "BeyondDebug(gdb)".
 * Press the green 'play' button to start debugging.
 
-You can now  debugging your program.
+You can now debugging your program.
 
 ![Beyond Debug](https://dev.azure.com/coolchyni/00de68fc-20fd-4cff-8681-a0a0be966def/_apis/git/repositories/ce435a7c-1ae2-41d1-b97d-5c3f504c4c92/items?path=%2Fbeyond-debug.gif&versionDescriptor%5BversionOptions%5D=0&versionDescriptor%5BversionType%5D=0&versionDescriptor%5Bversion%5D=master&resolveLfs=true&%24format=octetStream&api-version=5.0)
 
@@ -48,6 +49,8 @@ path for the debugger to find the debug symbols.
 Attaching to existing processes currently only works by specifying the processId in the
 `launch.json` and setting `request` to `"attach"`. You also need to specify the executable
 path for the debugger to find the debug symbols.
+If the argument `program` arg is not set, a pickprocess window will be displayed.
+If the argument `program` is set and only one process is found ,the debugger will start automatically.
 
 ``` json
 {
@@ -55,8 +58,7 @@ path for the debugger to find the debug symbols.
     "request": "attach",
     "name": "Attach(gdb)",
     "program": "{fileBasenameNoExtension}",
-    "cwd": "${workspaceRoot}",
-    "processId": 5678
+    "cwd": "${workspaceRoot}"
 }
 ```
 
@@ -131,8 +133,26 @@ You can view memory data on debug console or `Microsoft Hex Editor` if it instal
 Rignt click in editor on deubgging or use command `byeond:View Memory`.
 If no content is selected, you can input address like this:[address or variable]:[address length (default:100) ], e.g. `0x1111:12` or `0x1111` or `va:123` or `s.c_str():100` ...
 
-## Todo List
-* PickProcess for attach
+# Configuration
+|name|type|default|desc|attach
+--|--|--|--|--
+debuggerPath|string|gdb|The path to the debugger (such as gdb)
+debuggerArgs|array|Additional arguments for the debugger
+program|string||Full path to program executable
+programArgs|string||Command line arguments passed to the program
+cwd|string|`${workspaceRoot}`|The working directory of the target
+stopAtEntry|boolean|false|If true, the debugger should stop at the entrypoint of the target
+commandsBeforeExec|array||One or more GDB/GDB-MI commands to execute before launch.
+varUpperCase|boolean|false|Convert all variables to uppercase. Used in case insensitive language, e.g. pascal.
+defaultStringCharset|string||Set the charset of a string variable on display. e.g. utf-8
+**remote** |
+enabled|boolean|true|If true, the remote mode will be actived.
+address|string||Remote address and port. [ip:port] 
+mode|string|remote|Extended target mode. Can be `remote` or `extended-remote`
+execfile|string||Remote exec file.
+transfer|array||Transfer local file to remote before launch. 
+
+# Todo List
 * Add i18n supports
 * lldb-mi support
 

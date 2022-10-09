@@ -22,7 +22,7 @@
 	"engines": {
 		"vscode": "^1.44.0"
 	},
-	"icon": "images/beyond-debug.png",
+	"icon": "assets/beyond-debug.png",
 	"categories": [
 		"Debuggers",
 		"Programming Languages"
@@ -40,8 +40,7 @@
 		"publish": "vsce publish",
 		"peg": "pegjs -o ./src/dbgmits/mi_output_parser.js src/dbgmits/mi_output_grammar.pegjs",
 		"vscode:prepublish": "npm run -S esbuild-base -- --minify",
-		"esbuild-base-o": "rimraf out &&  esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs  --platform=node",
-		"esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs  --platform=node",
+		"esbuild-base": "rimraf out &&  esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs  --platform=node",
 		"esbuild": "npm run -S esbuild-base -- --sourcemap",
 		"esbuild-watch": "npm run -S esbuild-base -- --sourcemap --watch"
 	},
@@ -71,6 +70,7 @@
 		"typescript": "^3.8.3",
 		"vsce": "1.78.0",
 		"vscode-debugadapter-testsupport": "1.41.0",
+		"vscode-nls": "5.2.0",
 		"vscode-test": "1.3.0"
 	},
 	"main": "./out/extension",
@@ -187,33 +187,38 @@
 						"properties": {
 							"debuggerPath": {
 								"type": "string",
-								"description": "Debugger program path. (gdb file path)",
+								"description": "The path to the debugger (such as gdb).",
 								"default": "gdb"
 							},
 							"debuggerArgs": {
 								"type": "array",
-								"description": "Debugger program launch args.",
+								"description": "Additional arguments for the debugger.",
 								"items": {
 									"type": "string"
 								}
 							},
 							"program": {
 								"type": "string",
-								"description": "Path of executable for debugging symbols.",
+								"description": "Path to program executable.",
 								"default": "${workspaceFolder}/${fileBasenameNoExtension}"
 							},
 							"programArgs": {
 								"type": "string",
-								"description": "Set the inferior program arguments, to be used in the program run"
+								"description": "Command line arguments passed to the program."
 							},
 							"cwd": {
 								"type": "string",
-								"description": "Current path of local.",
+								"description": "The working directory of the target.",
 								"default": "${workspaceRoot}"
+							},
+							"stopAtEntry":{
+								"type":"boolean",
+								"description":"If true, the debugger should stop at the entrypoint of the target.",
+								"default":false
 							},
 							"commandsBeforeExec": {
 								"type": "array",
-								"description": "Commands run before execution. Can be any gdb or gdb-mi command.",
+								"description": "One or more GDB commands to execute before launch.",
 								"items": {
 									"type": "string"
 								}
@@ -225,7 +230,7 @@
 							},
 							"defaultStringCharset": {
 								"type": "string",
-								"description": "Set varialbe charset of string on display",
+								"description": "Set the charset of a string variable on display.  e.g. utf-8.",
 								"default": ""
 							},
 							"remote": {
@@ -236,7 +241,7 @@
 								"properties": {
 									"enabled": {
 										"type": "boolean",
-										"description": "enable remote debug.",
+										"description": "If true, the remote mode will be actived..",
 										"default": true
 									},
 									"address": {
@@ -246,7 +251,7 @@
 									},
 									"mode": {
 										"type": "string",
-										"description": "Use extended target.",
+										"description": "Extended target mode.  Can be `remote` or `extended-remote`",
 										"default": "remote",
 										"enum": [
 											"remote",
@@ -276,31 +281,27 @@
 						}
 					},
 					"attach": {
-						"required": [
-							"program",
-							"processId"
-						],
 						"properties": {
 							"debuggerPath": {
 								"type": "string",
-								"description": "Debugger program path. (gdb file path)",
+								"description": "The path to the debugger (such as gdb). ",
 								"default": "gdb"
 							},
 							"debuggerArgs": {
 								"type": "array",
-								"description": "Debugger program launch args.",
+								"description": "Additional arguments for the debugger.",
 								"items": {
 									"type": "string"
 								}
 							},
 							"program": {
 								"type": "string",
-								"description": "Path of executable for debugging symbols.",
+								"description": "Path to program executable.",
 								"default": "${workspaceFolder}/${fileBasenameNoExtension}"
 							},
 							"commandsBeforeExec": {
 								"type": "array",
-								"description": "Commands run before execution. Can be any gdb or gdb-mi command.",
+								"description": "One or more GDB commands to execute before launch.",
 								"items": {
 									"type": "string"
 								}
@@ -312,12 +313,12 @@
 							},
 							"defaultStringCharset": {
 								"type": "string",
-								"description": "Set varialbe charset of string on display",
+								"description": "Set the charset of a string variable on display. e.g. utf-8.",
 								"default": ""
 							},
 							"cwd": {
 								"type": "string",
-								"description": "Current path of local.",
+								"description": "The working directory of the target in local.",
 								"default": "${workspaceRoot}"
 							},
 							"processId": {

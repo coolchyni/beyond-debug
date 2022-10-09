@@ -17,13 +17,17 @@ import * as vscode from 'vscode';
 import { BeyDbgSession } from './beyDbgSession';
 import { TerminalEscape, TE_Style } from './terminalEscape';
 import { TargetStopReason, IStackFrameVariablesInfo, IVariableInfo, IStackFrameInfo, IWatchInfo, IThreadInfo } from './dbgmits';
-import { watch, unwatchFile } from 'fs';
+import { watch, unwatchFile, fstat } from 'fs';
 import { threadId } from 'worker_threads';
-import { exit } from 'process';
+import { exit, openStdin } from 'process';
 import { log } from 'console';
 import { StringDecoder } from 'string_decoder';
 import * as iconv from 'iconv-lite';
 import { TextDecoder } from 'util';
+import {showQuickPick} from './attachQuickPick';
+import {NativeAttachItemsProviderFactory} from './nativeAttach';
+import { AttachItemsProvider, AttachPicker } from './attachToProcess';
+import path = require('path');
 
 function timeout(ms: number) {
 	return new Promise(resolve => setTimeout(resolve, ms));
@@ -48,6 +52,7 @@ interface ILaunchRequestArguments extends DebugProtocol.LaunchRequestArguments {
 	commandsBeforeExec?:string[];
 	varUpperCase:boolean;
 	defaultStringCharset?:string;
+	stopAtEntry:boolean;
 	remote?: {
 		enabled: boolean,
 		address: string,
@@ -85,6 +90,7 @@ export class BeyDebug extends DebugSession {
 
 	private _cancelationTokens = new Map<number, boolean>();
 	private _isRunning = false;
+	private _isAttached = false;
 
 
 	private _progressId = 10000;
@@ -223,7 +229,7 @@ export class BeyDebug extends DebugSession {
 		});
 		this.dbgSession.on(dbg.EVENT_SIGNAL_RECEIVED, (e: dbg.ISignalReceivedEvent) => {
 			logger.log('signal_receive:'+e.signalCode);
-			let event=new StoppedEvent('exception', e.threadId,e.signalMeaning);
+			let event=new StoppedEvent('signal', e.threadId,e.signalMeaning);
 			event.body['text']=e.signalMeaning;
 			event.body['description']=e.signalMeaning;
 			this.sendEvent(event);
@@ -337,6 +343,7 @@ export class BeyDebug extends DebugSession {
 		response.body.supportsReadMemoryRequest = true;
 		//todo
 		response.body.supportsExceptionInfoRequest=false;
+
 		this.sendResponse(response);
 
 		// since this debug adapter can accept configuration requests like 'setBreakpoint' at any time,
@@ -475,9 +482,9 @@ export class BeyDebug extends DebugSession {
 
 
 		}
-
 		
-		await this.dbgSession.startInferior().catch((e) => {
+		
+		await this.dbgSession.startInferior({stopAtStart: true}).catch((e) => {
 			this.sendMsgToDebugConsole(e.message, EMsgType.error);
 			vscode.window.showErrorMessage("Failed to start the debugger." + e.message);
 			this.sendEvent(new TerminatedEvent(false));
@@ -491,16 +498,78 @@ export class BeyDebug extends DebugSession {
 					this.language=m[1];
 				}
 				this.dbgSession.off(dbg.EVENT_DBG_CONSOLE_OUTPUT,checklang);
-			}
-			
+			}	
 		};
 		this.dbgSession.on(dbg.EVENT_DBG_CONSOLE_OUTPUT,checklang);
 		await this.dbgSession.execNativeCommand('show language');
-	
+
+		this.dbgSession.once(dbg.EVENT_DBG_CONSOLE_OUTPUT,(out:string)=>{
+			let matchs=out.match(/(?:child Thread |child process |lwp )(\d+)/);
+			if(matchs){
+				this.dbgSession.setTargetPid(Number.parseInt(matchs[1]));
+			}
+		});
+		await this.dbgSession.execNativeCommand('info program');
+
+		if(!args.stopAtEntry){
+			this.dbgSession.resumeInferior();
+		}
+
 		this.sendResponse(response);
 	}
 
 	protected async attachRequest(response: DebugProtocol.AttachResponse, args: IAttachRequestArguments) {
+
+		const attachItemsProvider: AttachItemsProvider = NativeAttachItemsProviderFactory.Get();
+		
+		
+		let plist=await attachItemsProvider.getAttachItems();
+		if(args.program){
+			let pname=args.program;
+			if(args.program.match(/[\\/]/)){
+				pname=path.resolve(args.program);
+			}
+			//let pname=path.basename(args.program);
+
+			plist=plist.filter(
+				item=>{
+					return (args.processId && item.id==args.processId.toString())||
+					(item.detail && item.detail.toLowerCase().indexOf(pname)>-1)
+				}
+			);
+			if(plist.length==0){
+				//vscode.window.showErrorMessage(`parogam ${args.program} not found.`);
+				this.sendErrorResponse(response,0,`parogam ${args.program} not found.`);
+				return;
+			}
+		}
+		if(plist.length==1){
+			let pid=plist[0].id;
+			args.processId=Number.parseInt(pid);
+
+		}else if(plist.length>1){
+			try {
+				let pid=await showQuickPick(async  ()=>{return plist;} );
+				args.processId=Number.parseInt(pid);
+			} catch (error) {
+				this.sendErrorResponse(response,0,(error as Error).message);
+				return;
+			}
+			
+			
+		}
+			//const attacher: AttachPicker = new AttachPicker(attachItemsProvider);
+			
+			
+			// let s=await showQuickPick(()=>{
+			// 	return attachItemsProvider.getAttachItems();
+			// });
+		
+
+	   
+		//let s=await attacher.ShowAttachEntries();
+		//let prov= NativeAttachItemsProviderFactory.Get();
+		//let result=await showQuickPick(prov.getAttachItems);
 
 		vscode.commands.executeCommand('workbench.panel.repl.view.focus');
 		this.defaultStringCharset=args.defaultStringCharset;
@@ -523,20 +592,30 @@ export class BeyDebug extends DebugSession {
 			}
 		}
 
-		this.dbgSession.setExecutableFile(args.program).catch((e) => {
-			this.sendMsgToDebugConsole(e.message, EMsgType.error);
-			vscode.window.showErrorMessage(e.message);
-			this.sendEvent(new TerminatedEvent(false));
-		});
+		try {
+			await this.dbgSession.attach(args.processId);
+		} catch (error) {
+			
+			//vscode.window.showErrorMessage();
+			response.success=false;
+			response.command='cancelled';
+			response.message='Attach fail. '+(error as Error).message;
 
-		this.dbgSession.targetAttach(args.processId);
-
+			this.sendResponse(response);
+			return;
+		}
+	 	
+		await this.dbgSession.resumeInferior();
+		this._isAttached=true;
 		this.sendResponse(response);
 	}
 
-	protected pauseRequest(response: DebugProtocol.PauseResponse, args: DebugProtocol.PauseArguments, request?: DebugProtocol.Request): void {
+	protected async  pauseRequest(response: DebugProtocol.PauseResponse, args: DebugProtocol.PauseArguments, request?: DebugProtocol.Request): Promise<void> {
 
+		await this.dbgSession.pause();
+	
 		logger.log('pause');
+		this.sendResponse(response);
 
 	}
 
@@ -605,8 +684,26 @@ export class BeyDebug extends DebugSession {
 		let threads: Thread[] = [];
 		let r = await this.dbgSession.getThreads();
 		this._currentThreadId = r.current;
+		let idtype=0;
+		if(r.current.targetId.startsWith('LWP')){
+			idtype=1;
+		}else if(r.current.targetId.startsWith('Thread')){
+			idtype=2;
+		}
 		r.all.forEach((th) => {
-			threads.push(new Thread(th.id, th.name));
+			if(idtype==1){
+				let ids=th.targetId.split(' ');
+				let tid=Number.parseInt(ids[1]);
+				threads.push(new Thread(th.id, `Thread #${tid}`));
+		
+			}else if(idtype==2){
+				let ids=th.targetId.split('.');
+				let tid=Number.parseInt(ids[1]);
+				threads.push(new Thread(th.id, `Thread #${tid} ${th.name?th.name:''}`));
+			}else{
+				threads.push(new Thread(th.id, th.targetId));
+			}
+			
 		});
 		response.body = {
 			threads: threads
@@ -1005,12 +1102,28 @@ export class BeyDebug extends DebugSession {
 
 
 	protected async disconnectRequest(response: DebugProtocol.DisconnectResponse, args: DebugProtocol.DisconnectArguments, request?: DebugProtocol.Request) {
-		if (this._isRunning) {
-			await this.dbgSession.pause();
-	
+		try {
+			if (this._isRunning) {
+			
+				try {
+					await this.dbgSession.pause();
+				} catch (error) {
+					this.dbgSession.kill();
+				}
+				
+			}
+			if(this._isAttached){
+				await this.dbgSession.executeCommand('target-detach');
+				await this.dbgSession.stop();
+			}else{
+				this.dbgSession.kill();
+				//await this.dbgSession.execNativeCommand('kill');
+				await this.dbgSession.stop();
+			}
+		} catch (error) {
+			await this.dbgSession.stop();
 		}
-		await this.dbgSession.execNativeCommand('kill');
-		await this.dbgSession.stop();
+
 		this.sendResponse(response);
 	}
 
@@ -1041,5 +1154,4 @@ export class BeyDebug extends DebugSession {
 	public getBeyDbgSession():BeyDbgSession{
 		return this.dbgSession;
 	} 
-    
 }
