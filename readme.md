@@ -156,3 +156,5 @@ transfer|array||Transfer local file to remote before launch.
 * Add i18n supports
 * lldb-mi support
 
+# Thanks
+* [dbgmits](https://github.com/enlight/dbgmits) This library  used to programmatically control debuggers that implement the GDB/Machine Interface via JavaScript.
