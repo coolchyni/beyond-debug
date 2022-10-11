@@ -1,6 +1,7 @@
-## [0.9.8] -  2022-10-09
+## [0.9.9] -  2022-10-09
 ### Fixed
  - repository url change to github
+ - #2 command 'extension.pickNativeProcess' already exists
 
 ## [0.9.7] -  2022-10-09
 ### Added

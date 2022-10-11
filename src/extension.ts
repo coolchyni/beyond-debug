@@ -30,9 +30,9 @@ import { AttachItemsProvider, AttachPicker } from './attachToProcess';
 export function activate(context: vscode.ExtensionContext) {
 
 	// Activate Process Picker Commands
-	const attachItemsProvider: AttachItemsProvider = NativeAttachItemsProviderFactory.Get();
-	const attacher: AttachPicker = new AttachPicker(attachItemsProvider);
-	context.subscriptions.push(vscode.commands.registerCommand('extension.pickNativeProcess', () => attacher.ShowAttachEntries()));
+	//const attachItemsProvider: AttachItemsProvider = NativeAttachItemsProviderFactory.Get();
+	//const attacher: AttachPicker = new AttachPicker(attachItemsProvider);
+	//context.subscriptions.push(vscode.commands.registerCommand('extension.pickNativeProcess', () => attacher.ShowAttachEntries()));
 		
 	let outchannel = vscode.window.createOutputChannel('BeyondDebug');
 	logger.init((e) => {
