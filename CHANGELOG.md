@@ -1,6 +1,6 @@
 ## [0.9.10] - 2022-10-17
 ## Fixed 
- - breakpointer not inseted after attach
+ - breakpointer not inserted after attach
 
 ## [0.9.9] -  2022-10-11
 ### Fixed
