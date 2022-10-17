@@ -520,6 +520,41 @@ export class BeyDebug extends DebugSession {
 
 	protected async attachRequest(response: DebugProtocol.AttachResponse, args: IAttachRequestArguments) {
 
+		
+			//const attacher: AttachPicker = new AttachPicker(attachItemsProvider);
+			
+			
+			// let s=await showQuickPick(()=>{
+			// 	return attachItemsProvider.getAttachItems();
+			// });
+		
+
+	   
+		//let s=await attacher.ShowAttachEntries();
+		//let prov= NativeAttachItemsProviderFactory.Get();
+		//let result=await showQuickPick(prov.getAttachItems);
+
+		vscode.commands.executeCommand('workbench.panel.repl.view.focus');
+		this.defaultStringCharset=args.defaultStringCharset;
+		
+		// wait until configuration has finished (and configurationDoneRequest has been called)
+		this.dbgSession.startIt(args.debuggerPath, args.debuggerArgs);
+		await this._configurationDone.wait(1001);
+		//must wait for configure done. It will get error args without this.
+		await this._startDone.wait(1002);
+		//await this.dbgSession.execNativeCommand('-gdb-set mi-async on');
+		if (args.cwd) {
+			await this.dbgSession.environmentCd(args.cwd);
+		}
+		this.varUpperCase=args.varUpperCase;
+		if (args.commandsBeforeExec){
+			for (const  cmd of args.commandsBeforeExec) {
+				await this.dbgSession.execNativeCommand(cmd).catch((e)=>{
+					this.sendMsgToDebugConsole(e.message,EMsgType.error);
+				});
+			}
+		}
+
 		const attachItemsProvider: AttachItemsProvider = NativeAttachItemsProviderFactory.Get();
 		
 		
@@ -557,39 +592,6 @@ export class BeyDebug extends DebugSession {
 			}
 			
 			
-		}
-			//const attacher: AttachPicker = new AttachPicker(attachItemsProvider);
-			
-			
-			// let s=await showQuickPick(()=>{
-			// 	return attachItemsProvider.getAttachItems();
-			// });
-		
-
-	   
-		//let s=await attacher.ShowAttachEntries();
-		//let prov= NativeAttachItemsProviderFactory.Get();
-		//let result=await showQuickPick(prov.getAttachItems);
-
-		vscode.commands.executeCommand('workbench.panel.repl.view.focus');
-		this.defaultStringCharset=args.defaultStringCharset;
-		
-		// wait until configuration has finished (and configurationDoneRequest has been called)
-		this.dbgSession.startIt(args.debuggerPath, args.debuggerArgs);
-		await this._configurationDone.wait(1001);
-		//must wait for configure done. It will get error args without this.
-		await this._startDone.wait(1002);
-		//await this.dbgSession.execNativeCommand('-gdb-set mi-async on');
-		if (args.cwd) {
-			await this.dbgSession.environmentCd(args.cwd);
-		}
-		this.varUpperCase=args.varUpperCase;
-		if (args.commandsBeforeExec){
-			for (const  cmd of args.commandsBeforeExec) {
-				await this.dbgSession.execNativeCommand(cmd).catch((e)=>{
-					this.sendMsgToDebugConsole(e.message,EMsgType.error);
-				});
-			}
 		}
 
 		try {
@@ -685,10 +687,12 @@ export class BeyDebug extends DebugSession {
 		let r = await this.dbgSession.getThreads();
 		this._currentThreadId = r.current;
 		let idtype=0;
-		if(r.current.targetId.startsWith('LWP')){
-			idtype=1;
-		}else if(r.current.targetId.startsWith('Thread')){
-			idtype=2;
+		if(r.current){
+			if(r.current.targetId.startsWith('LWP')){
+				idtype=1;
+			}else if(r.current.targetId.startsWith('Thread')){
+				idtype=2;
+			}
 		}
 		r.all.forEach((th) => {
 			if(idtype==1){
