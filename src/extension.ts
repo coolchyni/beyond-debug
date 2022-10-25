@@ -3,7 +3,6 @@
  *--------------------------------------------------------*/
 
 'use strict';
-import * as nls from 'vscode-nls';
 import * as Net from 'net';
 import * as vscode from 'vscode';
 import { randomBytes } from 'crypto';
@@ -11,10 +10,10 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { platform } from 'process';
 import { WorkspaceFolder, DebugConfiguration, ProviderResult, CancellationToken } from 'vscode';
-import { logger } from 'vscode-debugadapter';
+import { logger } from '@vscode/debugadapter';
 
 import { BeyDebug } from './beyDebug';
-import { LogLevel } from 'vscode-debugadapter/lib/logger';
+import { LogLevel } from '@vscode/debugadapter/lib/logger';
 import { TextEncoder } from 'util';
 import { pathToFileURL } from 'url';
 import * as memview from './beyMemoryView';

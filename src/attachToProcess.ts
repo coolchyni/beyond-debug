@@ -8,10 +8,10 @@ import { AttachItem, showQuickPick } from './attachQuickPick';
 
 //import * as debugUtils from './utils';
 //import * as util from '../common';
-import * as nls from 'vscode-nls';
+//import * as nls from 'vscode-nls';
 
-nls.config({ messageFormat: nls.MessageFormat.bundle, bundleFormat: nls.BundleFormat.standalone })();
-const localize: nls.LocalizeFunc = nls.loadMessageBundle();
+//nls.config({ messageFormat: nls.MessageFormat.bundle, bundleFormat: nls.BundleFormat.standalone })();
+//const localize: nls.LocalizeFunc = nls.loadMessageBundle();
 
 export interface AttachItemsProvider {
     getAttachItems(): Promise<AttachItem[]>;

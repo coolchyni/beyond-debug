@@ -9,7 +9,7 @@ import * as os from 'os';
 import { getExtensionFilePath } from './util';
 import path = require('path');
 import { match } from 'assert';
-import { LogLevel } from 'vscode-debugadapter/lib/logger';
+import { LogLevel } from '@vscode/debugadapter/lib/logger';
 import { IAttachRequestArguments, ILaunchRequestArguments } from './argments';
 
 export declare class  BeyDbgSession extends DebugSession{

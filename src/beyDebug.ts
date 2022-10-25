@@ -7,7 +7,7 @@ import {
 	InitializedEvent, TerminatedEvent, StoppedEvent, OutputEvent,
 	ProgressStartEvent, ProgressUpdateEvent, ProgressEndEvent,
 	Thread, StackFrame, Source, Handles, Breakpoint, DebugSession, ContinuedEvent
-} from 'vscode-debugadapter';
+} from '@vscode/debugadapter';
 import { DebugProtocol } from 'vscode-debugprotocol';
 import *  as dbg from './dbgmits';
 
@@ -106,7 +106,7 @@ export class BeyDebug extends DebugSession {
 					break;
 			}
 		//}
-
+	
 		this.sendEvent(new OutputEvent(TerminalEscape.apply({ msg: msg, style: style })));
 		
 	}

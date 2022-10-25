@@ -7,7 +7,7 @@ import * as stream from 'stream';
 import * as parser from './mi_output_parser';
 import { RecordType } from './mi_output';
 import * as Events from './events';
-import { logger } from 'vscode-debugadapter';
+import { logger } from '@vscode/debugadapter';
 import {
   IBreakpointInfo, IBreakpointLocationInfo,
   IStackFrameInfo, IStackFrameArgsInfo, IStackFrameVariablesInfo, IVariableInfo,
