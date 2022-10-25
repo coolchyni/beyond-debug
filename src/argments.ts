@@ -1,4 +1,4 @@
-import { DebugProtocol } from 'vscode-debugprotocol';
+import { DebugProtocol } from '@vscode/debugprotocol';
 
 /**
  * This interface describes the hi-debug specific launch attributes

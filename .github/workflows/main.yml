@@ -32,7 +32,7 @@ jobs:
         run: npm i -g esbuild
         
       - name: Build with esbuild
-        run: esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs  --platform=node
+        run: npm run esbuild-base
 
       #
       # Package and Upload Extension

@@ -1,9 +1,10 @@
 const  { nativeNodeModulesPlugin }  = require("esbuild-native-node-modules-plugin");
+const { platform } = require("os");
 require('esbuild').build({
     entryPoints: ['./src/extension.ts'],
     bundle: true,
     outfile: 'out/extension.js',
-    plugins: [nativeNodeModulesPlugin],
+    plugins: platform=="win32"?[]:[nativeNodeModulesPlugin],
     external: ['vscode'],
     format:'cjs',
     platform:'node'

@@ -8,7 +8,7 @@ import {
 	ProgressStartEvent, ProgressUpdateEvent, ProgressEndEvent,
 	Thread, StackFrame, Source, Handles, Breakpoint, DebugSession, ContinuedEvent
 } from '@vscode/debugadapter';
-import { DebugProtocol } from 'vscode-debugprotocol';
+import { DebugProtocol } from '@vscode/debugprotocol';
 import *  as dbg from './dbgmits';
 
 import * as vscode from 'vscode';
@@ -333,8 +333,9 @@ export class BeyDebug extends DebugSession {
 
 	}
 
-	protected async launchRequest(response: DebugProtocol.LaunchResponse, args: ILaunchRequestArguments) {
+	protected async launchRequest(response: DebugProtocol.LaunchResponse, _args: DebugProtocol.LaunchRequestArguments ) {
 
+		let args=_args as ILaunchRequestArguments;
 		this.initDbSession(args.ssh?true:false);
 		vscode.commands.executeCommand('workbench.panel.repl.view.focus');
 		this.defaultStringCharset=args.defaultStringCharset;
@@ -481,8 +482,8 @@ export class BeyDebug extends DebugSession {
 		this.sendResponse(response);
 	}
 
-	protected async attachRequest(response: DebugProtocol.AttachResponse, args: IAttachRequestArguments) {
-
+	protected async attachRequest(response: DebugProtocol.AttachResponse, _args:DebugProtocol.AttachRequestArguments) {
+		let args=_args as  IAttachRequestArguments;
 		this.initDbSession(false);
 			//const attacher: AttachPicker = new AttachPicker(attachItemsProvider);
 			

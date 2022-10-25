@@ -42,8 +42,7 @@
 		"vscode:prepublish": "npm run -S esbuild-base -- --minify",
 		"esbuild-base": "rimraf out &&  node build.js",
 		"esbuild": "npm run -S esbuild-base -- --sourcemap",
-		"esbuild-watch": "npm run -S esbuild-base -- --sourcemap --watch",
-		"buildc":"node build.js"
+		"esbuild-watch": "npm run -S esbuild-base -- --sourcemap --watch"
 	},
 	"dependencies": {
 		"@vscode/debugadapter": "1.57.0",
