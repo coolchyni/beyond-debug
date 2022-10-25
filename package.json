@@ -1,7 +1,7 @@
 {
 	"name": "beyond-debug",
 	"displayName": "GDB Debugger - Beyond",
-	"version": "0.9.10",
+	"version": "0.9.11",
 	"publisher": "coolchyni",
 	"description": "Debugger with gdb for c,c++,freepascal,fortran and more.",
 	"author": {
@@ -20,7 +20,7 @@
 		"debugger"
 	],
 	"engines": {
-		"vscode": "^1.44.0"
+		"vscode": "^1.65.0"
 	},
 	"icon": "assets/beyond-debug.png",
 	"categories": [
@@ -48,7 +48,7 @@
 		"await-notify": "1.0.1",
 		"iconv-lite": "0.6.2",
 		"pegjs-require-import": "^0.0.6",
-		"vscode-debugadapter": "1.41.1"
+		"vscode-debugadapter": "^1.51.0"
 	},
 	"devDependencies": {
 		"@types/bunyan": "0.0.30",
@@ -56,7 +56,7 @@
 		"@types/iconv-lite": "^0.0.1",
 		"@types/mocha": "^8.0.0",
 		"@types/node": "^13.13.52",
-		"@types/vscode": "^1.44.0",
+		"@types/vscode": "^1.65.0",
 		"@typescript-eslint/eslint-plugin": "^3.8.0",
 		"@typescript-eslint/parser": "^3.8.0",
 		"esbuild": "^0.14.23",
@@ -71,7 +71,9 @@
 		"vsce": "1.78.0",
 		"vscode-debugadapter-testsupport": "1.41.0",
 		"vscode-nls": "5.2.0",
-		"vscode-test": "1.3.0"
+		"vscode-test": "1.3.0",
+		"@types/ssh2": "1.11.6",
+		"ssh2": "1.11.0"
 	},
 	"main": "./out/extension",
 	"activationEvents": [
@@ -253,6 +255,71 @@
 									"execfile": {
 										"type": "string",
 										"description": "Remote exec file. Used on extended-remote mode.  Will use local program name if not set."
+									},
+									"transfer": {
+										"type": "array",
+										"description": "Transfer local file to remote before launch.",
+										"items": {
+											"properties": {
+												"from": {
+													"type": "string"
+												},
+												"to": {
+													"type": "string"
+												}
+											}
+										}
+									}
+								}
+							},
+							"ssh":{
+								"required": [
+									"enabled",
+									"address",
+									"username"
+								],
+								"properties": {
+									"enabled": {
+										"type": "boolean",
+										"description": "If true, the ssh mode will be actived..",
+										"default": true
+									},
+									"address": {
+										"type": "string",
+										"description": "Remote address and port. [ip:port] ",
+										"default": ""
+									},
+									"username":{
+										"type":"string",
+										"description": "User name for login."
+									},
+									"passwordType":{
+										"type":"string",
+										"description":"How to use password.",
+										"enum":[
+											"None",
+											"Input",
+											"InputAndSave"
+										],
+										"default":"None"
+									},
+									"privateKey":{
+										"type": "string",
+										"description": "File path of privateKey to login.(eg. id_rsa) \n This will be ignored if password is not empty. "
+									},
+									"timeout":{
+										"type":"number",
+										"description":"Time out for SSH.(ms)",
+										"default":1000
+									},
+									"remoteSrcPrefix":{
+										"type": "string",
+										"description":"Path prefix of remote source code.\n It will be replaced by localSrcPrefix if not empty. "
+
+									},
+									"loacalSrcPrefix":{
+										"type": "string",
+										"description": "Path prefix of local source code."
 									},
 									"transfer": {
 										"type": "array",

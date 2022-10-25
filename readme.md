@@ -125,6 +125,30 @@ in `launch.json`
 }
 ```
 
+## Use gdb through SSH
+To use gdb through SSH. You use password mode can do like this. 
+``` json
+{
+    
+    "ssh": {
+        "enabled": true,
+        "address": "123.123.1.1:1234",
+        "username": "root",
+        "passwordType": "None",
+        "timeout":1000,
+        //"privateKey":"~/.ssh/id_rsa"
+        //"remoteSrcPrefix": "/root/test/src",
+        //"loacalSrcPrefix": ""
+        // "transfer": [
+        //     {"from": "z:/tmp/src/project1","to": "/root/test/project1"}
+        // ]
+    }
+}
+```
+If `passwordType` and `privateKey`  is None, it will try to use .ssh/id_rsa file of system for authentication. 
+
+
+
 ## Use gdb's native command
 You can use all the GDB commands from the debug console. Just like in the shell.
 
@@ -151,6 +175,17 @@ address|string||Remote address and port. [ip:port]
 mode|string|remote|Extended target mode. Can be `remote` or `extended-remote`
 execfile|string||Remote exec file.
 transfer|array||Transfer local file to remote before launch. 
+**ssh**|
+enabled|boolean|true|If true, the ssh mode will be actived.
+address|string||Remote address and port. [ip:port] 
+username|string||User name for login
+passwordType|string||How to use password. Can b `Input` or `InputAndSave`.
+privateKey|string||File path of privateKey to login.(eg. id_rsa) \n This will be ignored if password is not empty.
+timeout|string||Time out for SSH.(ms)
+remoteSrcPrefix|string||Path prefix of remote source code.\n It will be replaced by localSrcPrefix if not empty.
+loacalSrcPrefix|string||Path prefix of local source code.
+transfer|array||Transfer local file to remote before launch. 
+
 
 # Todo List
 * Add i18n supports

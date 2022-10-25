@@ -3,17 +3,48 @@
 
 import {
   IBreakpointLocationInfo, IBreakpointInfo, IStackFrameInfo, IWatchChildInfo, IAsmInstruction,
-  ISourceLineAsm, IThreadFrameInfo, IThreadInfo
+  ISourceLineAsm, IThreadFrameInfo, IThreadInfo, IFrameInfo
 } from './types';
 
-function extractBreakpointLocationInfo(data: any): IBreakpointLocationInfo {
+var _extractFullNameFunction:(input: string) => string=null;
+export function setExtractFullNameFunction(func:(input: string) => string){
+  _extractFullNameFunction=func;
+}
+export function getExtractFullNameFunction():((input: string) => string){
+  return _extractFullNameFunction;
+}
+
+function getFullname(fullname:any):string|null{
+  if(_extractFullNameFunction){
+    if(!fullname){return null};
+    return _extractFullNameFunction(fullname);
+  }else{
+    return fullname;
+  }
+}
+
+/**
+  * Creates an object that conforms to the IFrameInfo interface from the output of the
+  * MI Output parser.
+  */
+export function extractFrameInfo(data: any): IFrameInfo {
+  return {
+    func: data.func,
+    args: data.args,
+    address: data.addr,
+    filename: data.file,
+    fullname: getFullname(data.fullname),
+    line: data.line ? parseInt(data.line, 10) : undefined,
+  };
+}
+export function extractBreakpointLocationInfo(data: any): IBreakpointLocationInfo {
   return {
     id: data['number'],
     isEnabled: (data.enabled !== undefined) ? (data.enabled === 'y') : undefined,
     address: data.addr,
     func: data.func,
     filename: data.file || data.filename, // LLDB MI uses non standard 'file'
-    fullname: data.fullname,
+    fullname: getFullname(data.fullname),
     line: parseInt(data.line, 10),
     at: data.at
   };
@@ -70,7 +101,7 @@ export function extractStackFrameInfo(data: any): IStackFrameInfo {
     func: data.func,
     address: data.addr,
     filename: data.file,
-    fullname: data.fullname,
+    fullname: getFullname(data.fullname),
     line: data.line ? parseInt(data.line, 10) : undefined,
     from: data.from
   };
@@ -137,7 +168,7 @@ export function extractAsmBySourceLine(data: any | any[]): ISourceLineAsm[] {
     return {
       line: parseInt(data.line, 10),
       file: data.file,
-      fullname: data.fullname,
+      fullname: getFullname(data.fullname),
       instructions: extractAsmInstructions(data.line_asm_insn)
     };
   };
@@ -165,7 +196,7 @@ function extractThreadFrameInfo(data: any): IThreadFrameInfo {
     args: data.args,
     address: data.addr,
     filename: data.file,
-    fullname: data.fullname,
+    fullname: getFullname(data.fullname),
     line: data.line ? parseInt(data.line, 10) : undefined
   };
 }

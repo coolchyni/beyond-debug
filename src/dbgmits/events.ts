@@ -2,7 +2,7 @@
 // MIT License, see LICENSE file for full terms.
 
 import { TargetStopReason, IFrameInfo, IBreakpointInfo } from './types';
-import { extractBreakpointInfo } from './extractors';
+import { extractBreakpointInfo, extractFrameInfo } from './extractors';
 
 
 /**
@@ -508,21 +508,6 @@ export function createEventForAsyncNotification(notification: string, data: any)
     default:
       // TODO: log and keep on going
       return undefined;
-  };
-}
-
-/**
-  * Creates an object that conforms to the IFrameInfo interface from the output of the
-  * MI Output parser.
-  */
-function extractFrameInfo(data: any): IFrameInfo {
-  return {
-    func: data.func,
-    args: data.args,
-    address: data.addr,
-    filename: data.file,
-    fullname: data.fullname,
-    line: data.line ? parseInt(data.line, 10) : undefined,
   };
 }
 

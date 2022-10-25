@@ -4,30 +4,24 @@
 
 import {
 	logger,
-	InitializedEvent, TerminatedEvent, StoppedEvent, BreakpointEvent, OutputEvent,
+	InitializedEvent, TerminatedEvent, StoppedEvent, OutputEvent,
 	ProgressStartEvent, ProgressUpdateEvent, ProgressEndEvent,
-	Thread, StackFrame, Scope, Source, Handles, Breakpoint, DebugSession
+	Thread, StackFrame, Source, Handles, Breakpoint, DebugSession, ContinuedEvent
 } from 'vscode-debugadapter';
 import { DebugProtocol } from 'vscode-debugprotocol';
-import { basename, join } from 'path';
-import { Subject } from 'await-notify';
 import *  as dbg from './dbgmits';
 
 import * as vscode from 'vscode';
-import { BeyDbgSession } from './beyDbgSession';
+import { BeyDbgSession, BeyDbgSessionNormal } from './beyDbgSession';
 import { TerminalEscape, TE_Style } from './terminalEscape';
-import { TargetStopReason, IStackFrameVariablesInfo, IVariableInfo, IStackFrameInfo, IWatchInfo, IThreadInfo } from './dbgmits';
-import { watch, unwatchFile, fstat } from 'fs';
-import { threadId } from 'worker_threads';
-import { exit, openStdin } from 'process';
-import { log } from 'console';
-import { StringDecoder } from 'string_decoder';
+import { TargetStopReason, IVariableInfo, IStackFrameInfo, IWatchInfo, IThreadInfo } from './dbgmits';
 import * as iconv from 'iconv-lite';
-import { TextDecoder } from 'util';
 import {showQuickPick} from './attachQuickPick';
 import {NativeAttachItemsProviderFactory} from './nativeAttach';
-import { AttachItemsProvider, AttachPicker } from './attachToProcess';
+import { AttachItemsProvider } from './attachToProcess';
 import path = require('path');
+import { BeyDbgSessionSSH } from './beyDbgSessionSSH';
+import { ILaunchRequestArguments,IAttachRequestArguments } from './argments';
 
 function timeout(ms: number) {
 	return new Promise(resolve => setTimeout(resolve, ms));
@@ -36,43 +30,6 @@ function timeout(ms: number) {
 function isFrameSame(f1?: IStackFrameInfo, f2?: IStackFrameInfo) {
 	return (f1?.level === f2?.level) && (f1?.fullname === f2?.fullname) && (f1?.func === f2?.func);
 }
-/**
- * This interface describes the hi-debug specific launch attributes
- * (which are not part of the Debug Adapter Protocol).
- * The schema for these attributes lives in the package.json of the hi-debug extension.
- * The interface should always match this schema.
- */
-interface ILaunchRequestArguments extends DebugProtocol.LaunchRequestArguments {
-	/** An absolute path to the "program" to debug. */
-	debuggerPath?: string;
-	debuggerArgs?: string[];
-	program: string;
-	programArgs?:string;
-	cwd?: string;
-	commandsBeforeExec?:string[];
-	varUpperCase:boolean;
-	defaultStringCharset?:string;
-	stopAtEntry:boolean;
-	remote?: {
-		enabled: boolean,
-		address: string,
-		mode: string,
-		execfile: string,
-		transfer: [{ from: string, to: string }]
-	}
-}
-interface IAttachRequestArguments extends DebugProtocol.AttachRequestArguments {
-	/** An absolute path to the "program" to debug. */
-	program: string;
-	/** Traget process id to attach. */
-	processId: number;
-	debuggerPath?: string;
-	debuggerArgs?: string[];
-	cwd?: string;
-	commandsBeforeExec?:string[];
-	varUpperCase:boolean;
-	defaultStringCharset?:string;
-}
 enum EMsgType {
 	info,	//black
 	error,
@@ -80,13 +37,13 @@ enum EMsgType {
 	info2,
 	info3,
 }
+const EVENT_CONFIG_DOWN='configdown';
+
 export class BeyDebug extends DebugSession {
 
 	private _variableHandles = new Handles<string>();
 
-	private _configurationDone = new Subject();
-
-	private _startDone = new Subject();
+	private _configurationDone:boolean = false;
 
 	private _cancelationTokens = new Map<number, boolean>();
 	private _isRunning = false;
@@ -153,18 +110,38 @@ export class BeyDebug extends DebugSession {
 		this.sendEvent(new OutputEvent(TerminalEscape.apply({ msg: msg, style: style })));
 		
 	}
+
+	private waitForConfingureDone():Promise<void>{
+		return new Promise<void>((resolve,reject)=>{
+			if(this._configurationDone){
+				resolve();
+			}else{
+				this.once(EVENT_CONFIG_DOWN,()=>{
+					resolve();
+				});
+				if(this._configurationDone){
+					resolve();
+				}
+			}
+		});
+	}
 	/**
 	 * Creates a new debug adapter that is used for one debug session.
 	 * We configure the default implementation of a debug adapter here.
 	 */
 	public constructor() {
 		super(true);
-
+	}
+	private initDbSession(is_ssh:boolean){
+		if(is_ssh){
+			this.dbgSession = new BeyDbgSessionSSH('mi3');
+		}else{
+			this.dbgSession=new BeyDbgSessionNormal('mi3');
+		}
 		// this debugger uses zero-based lines and columns
 		this.setDebuggerLinesStartAt1(true);
 		this.setDebuggerColumnsStartAt1(true);
 
-		this.dbgSession = new BeyDbgSession('mi3');
 		this.dbgSession.on(dbg.EVENT_SIGNAL_RECEIVED, (e: dbg.ISignalReceivedEvent) => {
 			logger.log(e.reason.toString());
 		});
@@ -238,15 +215,7 @@ export class BeyDebug extends DebugSession {
 			this.sendEvent(new StoppedEvent('exception', e.threadId,e.exception));
 		});
 
-		this.dbgSession.on(dbg.EVENT_TARGET_RUNNING, () => {
-
-		});
-		this.dbgSession.once(dbg.EVENT_SESSION_STARTED, () => {
-			this._startDone.notify();
-		});
-
 	}
-
 	private decodeString(value?:string,expressionType?:string):string{
 
 		if (expressionType===undefined){
@@ -358,27 +327,33 @@ export class BeyDebug extends DebugSession {
 	 */
 	protected configurationDoneRequest(response: DebugProtocol.ConfigurationDoneResponse, args: DebugProtocol.ConfigurationDoneArguments): void {
 		super.configurationDoneRequest(response, args);
-
-
-		this._configurationDone.notify();
-
+		this._configurationDone=true;
+		this.emit(EVENT_CONFIG_DOWN);
 		//notify the launchRequest that configuration has finished
 
 	}
 
 	protected async launchRequest(response: DebugProtocol.LaunchResponse, args: ILaunchRequestArguments) {
 
-		
+		this.initDbSession(args.ssh?true:false);
 		vscode.commands.executeCommand('workbench.panel.repl.view.focus');
 		this.defaultStringCharset=args.defaultStringCharset;
 
 		// make sure to 'Stop' the buffered logging if 'trace' is not set
 
 		// wait until configuration has finished (and configurationDoneRequest has been called)
-		this.dbgSession.startIt(args.debuggerPath, args.debuggerArgs);
-		await this._configurationDone.wait(1001);
-		//must wait for configure done. It will get error args without this.
-		await this._startDone.wait(1002);
+		try {
+			await this.dbgSession.startIt(args);
+			await this.waitForConfingureDone();
+			//must wait for configure done. It will get error args without this.
+			//await this._startDone.wait(2000);
+			await this.dbgSession.waitForStart();	
+		} catch (error) {
+			this.sendEvent(new TerminatedEvent(false));
+			this.sendErrorResponse(response,500);
+		}		
+		
+
 		//await this.dbgSession.execNativeCommand('-gdb-set mi-async on');
 		if (args.cwd) {
 			await this.dbgSession.environmentCd(args.cwd);
@@ -483,12 +458,6 @@ export class BeyDebug extends DebugSession {
 
 		}
 		
-		
-		await this.dbgSession.startInferior({stopAtStart: true}).catch((e) => {
-			this.sendMsgToDebugConsole(e.message, EMsgType.error);
-			vscode.window.showErrorMessage("Failed to start the debugger." + e.message);
-			this.sendEvent(new TerminatedEvent(false));
-		});
 		let checklang=(out:string)=>
 		{
 			if (out.indexOf('language')>0)
@@ -501,26 +470,20 @@ export class BeyDebug extends DebugSession {
 			}	
 		};
 		this.dbgSession.on(dbg.EVENT_DBG_CONSOLE_OUTPUT,checklang);
+
 		await this.dbgSession.execNativeCommand('show language');
 
-		this.dbgSession.once(dbg.EVENT_DBG_CONSOLE_OUTPUT,(out:string)=>{
-			let matchs=out.match(/(?:child Thread |child process |lwp )(\d+)/);
-			if(matchs){
-				this.dbgSession.setTargetPid(Number.parseInt(matchs[1]));
-			}
+		await this.dbgSession.startInferior({stopAtStart: args.stopAtEntry}).catch((e) => {
+			this.sendMsgToDebugConsole(e.message, EMsgType.error);
+			vscode.window.showErrorMessage("Failed to start the debugger." + e.message);
+			this.sendEvent(new TerminatedEvent(false));
 		});
-		await this.dbgSession.execNativeCommand('info program');
-
-		if(!args.stopAtEntry){
-			this.dbgSession.resumeInferior();
-		}
-
 		this.sendResponse(response);
 	}
 
 	protected async attachRequest(response: DebugProtocol.AttachResponse, args: IAttachRequestArguments) {
 
-		
+		this.initDbSession(false);
 			//const attacher: AttachPicker = new AttachPicker(attachItemsProvider);
 			
 			
@@ -538,10 +501,10 @@ export class BeyDebug extends DebugSession {
 		this.defaultStringCharset=args.defaultStringCharset;
 		
 		// wait until configuration has finished (and configurationDoneRequest has been called)
-		this.dbgSession.startIt(args.debuggerPath, args.debuggerArgs);
-		await this._configurationDone.wait(1001);
+		this.dbgSession.startIt(args);
+		await this.waitForConfingureDone();
 		//must wait for configure done. It will get error args without this.
-		await this._startDone.wait(1002);
+		await this.dbgSession.waitForStart();
 		//await this.dbgSession.execNativeCommand('-gdb-set mi-async on');
 		if (args.cwd) {
 			await this.dbgSession.environmentCd(args.cwd);
@@ -624,27 +587,33 @@ export class BeyDebug extends DebugSession {
 
 	protected async setBreakPointsRequest(response: DebugProtocol.SetBreakpointsResponse, args: DebugProtocol.SetBreakpointsArguments) {
 
+		//wait for gdb start
+		await this.dbgSession.waitForStart();
+
 		let isPause = false;
 		if (this._isRunning) {
 			await this.dbgSession.pause();
 			isPause = true;
 		}
-		const path = args.source.path as string;
+		
+		let srcpath = args.source.path as string;
+		srcpath=path.normalize(srcpath);
+		
 
-		if (this._breakPoints.has(path)) {
+		if (this._breakPoints.has(srcpath)) {
 			let bps: number[] = [];
 
-			this._breakPoints.get(path).forEach((e) => {
+			this._breakPoints.get(srcpath).forEach((e) => {
 				bps.push(e.id);
 			});
-			this._breakPoints.set(path, []);
+			this._breakPoints.set(srcpath, []);
 			this.dbgSession.removeBreakpoints(bps);
 
 		}
 
 		const clientLines = args.breakpoints || [];
 		const actualBreakpoints = await Promise.all(clientLines.map(async l => {
-			let bk = await this.dbgSession.addBreakpoint(path + ":" + this.convertClientLineToDebugger(l.line), {
+			let bk = await this.dbgSession.addBreakpoint(srcpath + ":" + this.convertClientLineToDebugger(l.line), {
 				isPending: true,
 				condition: l.condition
 			});
@@ -655,7 +624,7 @@ export class BeyDebug extends DebugSession {
 			bp.id = bk.id;
 			return bp;
 		}));
-		this._breakPoints.set(path, actualBreakpoints);
+		this._breakPoints.set(srcpath, actualBreakpoints);
 		if (isPause) {
 			this.dbgSession.resumeAllInferiors(false);
 		}
@@ -1118,14 +1087,14 @@ export class BeyDebug extends DebugSession {
 			}
 			if(this._isAttached){
 				await this.dbgSession.executeCommand('target-detach');
-				await this.dbgSession.stop();
+				await this.dbgSession.dbgexit();
 			}else{
-				this.dbgSession.kill();
+				//this.dbgSession.kill();
 				//await this.dbgSession.execNativeCommand('kill');
-				await this.dbgSession.stop();
+				await this.dbgSession.dbgexit();
 			}
 		} catch (error) {
-			await this.dbgSession.stop();
+			await this.dbgSession.kill();
 		}
 
 		this.sendResponse(response);

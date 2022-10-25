@@ -1,6 +1,10 @@
+## [0.9.11] - 2022-10-25
+## Added 
+ - Use gdb through SSH
+
 ## [0.9.10] - 2022-10-17
 ## Fixed 
- - breakpointer not inserted after attach
+ - Breakpointer not inserted after attach
 
 ## [0.9.9] -  2022-10-11
 ### Fixed

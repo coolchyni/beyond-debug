@@ -1,17 +1,28 @@
-import { DebugSession, TargetStopReason, EVENT_TARGET_STOPPED } from './dbgmits';
+import { DebugSession, TargetStopReason, EVENT_TARGET_STOPPED, IDebugSessionEvent } from './dbgmits';
 import * as dbg from './dbgmits';
 import { spawn, ChildProcess, exec, execSync } from 'child_process';
 import * as vscode from 'vscode';
 import { SIGINT, SIGQUIT } from 'constants';
 import { promises, fstat } from 'fs';
-import { kill } from 'process';
+import * as process from 'process';
 import * as os from 'os';
 import { getExtensionFilePath } from './util';
 import path = require('path');
 import { match } from 'assert';
 import { LogLevel } from 'vscode-debugadapter/lib/logger';
+import { IAttachRequestArguments, ILaunchRequestArguments } from './argments';
 
-export class BeyDbgSession extends DebugSession {
+export declare class  BeyDbgSession extends DebugSession{
+  constructor(miVersion: string);
+  public startIt(args:ILaunchRequestArguments|IAttachRequestArguments):Promise<void>;
+  public pause();
+  public dbgexit();
+  public attach(pid:number);
+  public kill():Promise<void>;
+  public waitForStart():Promise<void>;
+
+}
+export class BeyDbgSessionNormal extends DebugSession {
 
   private debuggerProcess?: ChildProcess;
   private target_pid?:number;
@@ -19,17 +30,36 @@ export class BeyDbgSession extends DebugSession {
   private major_version:number;
   private gdb_arch?:string;
   private is_win64:boolean=false;
+
   /**
    *
    */
   constructor(private miVersion: string = 'mi') {
     super();
+    this.on(dbg.EVENT_THREAD_GROUP_STARTED,(e)=>{
+      this.target_pid=Number.parseInt(e.pid);
+      
+    })
   }
 
-  public async startIt(path?: string, args?: string[]) {
-    let debuggerArgs: string[] = args ? args : [];
+  public async waitForStart(){
+    return new Promise<void>((resolve,reject)=>{
+      if(this.isStarted){
+        resolve();
+      }else{
+        this.once(dbg.EVENT_SESSION_STARTED,()=>{
+          resolve();
+        });
+        this.debuggerProcess.on('close',()=>{
+          reject();
+        });
+      }     
+    });
+  }
+  public async startIt(args:ILaunchRequestArguments|IAttachRequestArguments) {
+    let debuggerArgs: string[] = args.debuggerArgs ? args.debuggerArgs : [];
     this.target_pid=null;
-    const debuggerFilename = path ? path : 'gdb';
+    const debuggerFilename = args.debuggerPath ? args.debuggerPath : 'gdb';
     
     debuggerArgs = debuggerArgs.concat(['--interpreter', this.miVersion]);
     this.debuggerProcess = spawn(debuggerFilename, debuggerArgs);
@@ -54,10 +84,6 @@ export class BeyDbgSession extends DebugSession {
         }
         this.removeListener(dbg.EVENT_DBG_CONSOLE_OUTPUT,check_version);
       }
-      
-     
-
-
     }
 
     this.on(dbg.EVENT_DBG_CONSOLE_OUTPUT,check_version);
@@ -108,7 +134,7 @@ export class BeyDbgSession extends DebugSession {
         if(os.platform() === 'win32'){
           if(this.winbreakpath){
            
-            let proc = spawn(path.basename(this.winbreakpath), [this.getTargetPid().toString()], { cwd: path.dirname(this.winbreakpath) });
+            let proc = spawn(path.basename(this.winbreakpath), [this.target_pid.toString()], { cwd: path.dirname(this.winbreakpath) });
             proc.on('close', (code) => {
               if(code==0){
                 //this.emit(EVENT_TARGET_STOPPED);
@@ -121,13 +147,13 @@ export class BeyDbgSession extends DebugSession {
             });   
             //resolve();
           }else{
-            kill(this.getTargetPid(),"SIGINT");
+            process.kill(this.debuggerProcess.pid,"SIGINT");
           }
         }else{
-          kill(this.getTargetPid(),"SIGINT");
+          process.kill(this.debuggerProcess.pid,"SIGINT");
         }      
       } catch (error) {
-        this.logger.error("pause failure. "+this.getTargetPid().toString()+error);
+        //this.logger.error("pause failure. "+this.debuggerProcess.toString()+error);
         reject();
       } 
       //resolve();
@@ -136,10 +162,10 @@ export class BeyDbgSession extends DebugSession {
       });
     });
   }
-  public kill(){
+  public kill():Promise<void>{
     return new Promise<void>((resolve, reject) => {
       try {
-        kill(this.getTargetPid());
+        process.kill(this.debuggerProcess.pid);
         resolve();
       } catch (error) {
         reject();
@@ -159,7 +185,7 @@ export class BeyDbgSession extends DebugSession {
       }
       return super.startInferior(options);
   }
-  public async stop(){ 
+  public async dbgexit(){ 
     await this.end(true);
   }
 
@@ -167,15 +193,4 @@ export class BeyDbgSession extends DebugSession {
     await this.targetAttach(pid);
     this.target_pid=pid;
   }
-
-  public getTargetPid():number{ 
-    
-      return this.target_pid?this.target_pid:this.debuggerProcess.pid;
-  }
-
-  public setTargetPid(pid:number){
-    this.logger.log('* setTragetPid:'+pid,LogLevel.Log);
-    this.target_pid=pid;
-  }
-
 }
