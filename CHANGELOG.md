@@ -1,3 +1,9 @@
+## [0.9.12] - 2022-11-21
+## Added 
+ - Open SSH shell as terminal for debug.
+ - Show progress when uploading file through ssh.
+ - Only modified files will be uploaded.
+
 ## [0.9.11] - 2022-10-25
 ## Added 
  - Use gdb through SSH

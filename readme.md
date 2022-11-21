@@ -126,7 +126,7 @@ in `launch.json`
 ```
 
 ## Use gdb through SSH
-To use gdb through SSH. You use password mode can do like this. 
+To use gdb through SSH. You can use ssh mode like this. 
 ``` json
 {
     
@@ -134,7 +134,7 @@ To use gdb through SSH. You use password mode can do like this.
         "enabled": true,
         "address": "123.123.1.1:1234",
         "username": "root",
-        "passwordType": "None",
+        "passwordType": "none",
         "timeout":1000,
         //"privateKey":"~/.ssh/id_rsa"
         //"remoteSrcPrefix": "/root/test/src",
@@ -179,7 +179,7 @@ transfer|array||Transfer local file to remote before launch.
 enabled|boolean|true|If true, the ssh mode will be actived.
 address|string||Remote address and port. [ip:port] 
 username|string||User name for login
-passwordType|string||How to use password. Can b `Input` or `InputAndSave`.
+passwordType|string||How to use password. Can b `input` or `inputAndSave`.
 privateKey|string||File path of privateKey to login.(eg. id_rsa) \n This will be ignored if password is not empty.
 timeout|string||Time out for SSH.(ms)
 remoteSrcPrefix|string||Path prefix of remote source code.\n It will be replaced by localSrcPrefix if not empty.

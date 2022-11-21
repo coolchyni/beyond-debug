@@ -1,7 +1,7 @@
 {
 	"name": "beyond-debug",
 	"displayName": "GDB Debugger - Beyond",
-	"version": "0.9.11",
+	"version": "0.9.12",
 	"publisher": "coolchyni",
 	"description": "Debugger with gdb for c,c++,freepascal,fortran and more.",
 	"author": {
@@ -55,7 +55,7 @@
 		"@types/glob": "^7.1.3",
 		"@types/mocha": "^8.0.0",
 		"@types/node": "^13.13.52",
-		"@types/ssh2": "1.11.6",
+		"@types/ssh2": "^1.11.6",
 		"@types/vscode": "^1.65.0",
 		"@typescript-eslint/eslint-plugin": "^3.8.0",
 		"@typescript-eslint/parser": "^3.8.0",
@@ -68,7 +68,7 @@
 		"pegjs": "^0.10.0",
 		"rimraf": "^3.0.2",
 		"simplepeg": "1.2.0",
-		"ssh2": "1.11.0",
+		"ssh2": "^1.11.0",
 		"typescript": "^3.8.3",
 		"vsce": "1.78.0",
 		"vscode-nls": "5.2.0"
@@ -295,11 +295,11 @@
 										"type": "string",
 										"description": "How to use password.",
 										"enum": [
-											"None",
-											"Input",
-											"InputAndSave"
+											"none",
+											"input",
+											"inputAndSave"
 										],
-										"default": "None"
+										"default": "none"
 									},
 									"privateKey": {
 										"type": "string",
@@ -401,7 +401,7 @@
 				"configurationSnippets": [
 					{
 						"label": "GDB(Beyond): Launch a program",
-						"description": "A new configuration for 'debugging' a user selected markdown file.",
+						"description": "A new configuration for 'debugging'.",
 						"body": {
 							"type": "by-gdb",
 							"request": "launch",
@@ -412,7 +412,7 @@
 					},
 					{
 						"label": "GDB(Beyond): Attach to process",
-						"description": "A new configuration for 'debugging' a user selected markdown file.",
+						"description": "A new configuration for 'debugging' to attach to process.",
 						"body": {
 							"type": "by-gdb",
 							"request": "attach",
@@ -424,7 +424,7 @@
 					},
 					{
 						"label": "GDB(Beyond): Connect to gdbserver",
-						"description": "A new configuration for 'debugging' a user selected markdown file.",
+						"description": "A new configuration for 'debugging' use gdbserver.",
 						"body": {
 							"type": "by-gdb",
 							"request": "launch",
@@ -436,6 +436,23 @@
 								"address": ":2345",
 								"mode": "remote",
 								"execfile": "^\"\\${fileBasenameNoExtension}\""
+							}
+						}
+					},
+					{
+						"label": "GDB(Beyond): Through SSH",
+						"description": "A new configuration for 'debugging' through ssh.",
+						"body": {
+							"type": "by-gdb",
+							"request": "launch",
+							"name": "Launch(SSH)",
+							"program": "Input program path on remote.",
+							"cwd": "Input remote directory",
+							"ssh": {
+								"enabled": true,
+								"username": "root",
+								"address": "[ip:port]",
+								"passwordType": "none"
 							}
 						}
 					}

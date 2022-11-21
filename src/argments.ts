@@ -28,7 +28,8 @@ export interface ILaunchRequestArguments extends DebugProtocol.LaunchRequestArgu
 		enabled: boolean;
 		address: string;
 		username: string;
-		passwordType?: string;
+		passwordType: string;
+		password: string;
 		timeout:number;
 		privatekey?: string;
 		remoteSrcPrefix?: string;
