@@ -282,7 +282,7 @@ export class BeyDbgSessionSSH extends DebugSession {
     });
   }
 
-  private async startIt(args: ILaunchRequestArguments) {
+  public async startIt(args: ILaunchRequestArguments) {
     this.args = args;
     await vscode.window.withProgress({
       location: vscode.ProgressLocation.Notification
@@ -290,7 +290,7 @@ export class BeyDbgSessionSSH extends DebugSession {
     //vscode.window.showInformationMessage("started");
   }
 
-  public async doStartIt(process: vscode.Progress<{ message?: string; increment?: number }>) {
+  private async doStartIt(process: vscode.Progress<{ message?: string; increment?: number }>) {
     let key = this.args.ssh.address;
     if (!this.args.ssh.timeout) { this.args.ssh.timeout = 1000; }
     if (!this.args.ssh.passwordType) { this.args.ssh.passwordType = "none"; }
@@ -325,9 +325,14 @@ export class BeyDbgSessionSSH extends DebugSession {
       this.workspacepath = vscode.workspace.workspaceFolders[0].uri.fsPath;
       if (this.args.ssh?.remoteSrcPrefix) {
         let rdir = this.args.ssh.remoteSrcPrefix;
-        let ldir = this.args.ssh.localSrcPrefix ? this.args.ssh.localSrcPrefix : vscode.workspace.workspaceFolders[0].uri.path;
+        let ldir = this.args.ssh.localSrcPrefix ? this.args.ssh.localSrcPrefix : this.workspacepath;
         setExtractFullNameFunction((input) => {
-          return input.replace(rdir, ldir);
+          if(input.startsWith(rdir)){
+            return input.replace(rdir, ldir);
+          }else{
+            return input;
+          }
+          
         });
       }
       if (this.args.ssh.transfer) {

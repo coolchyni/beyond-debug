@@ -17,6 +17,7 @@ export interface ILaunchRequestArguments extends DebugProtocol.LaunchRequestArgu
 	varUpperCase: boolean;
 	defaultStringCharset?: string;
 	stopAtEntry: boolean;
+	language?: string;
 	remote?: {
 		enabled: boolean;
 		address: string;

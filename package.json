@@ -1,7 +1,7 @@
 {
 	"name": "beyond-debug",
 	"displayName": "GDB Debugger - Beyond",
-	"version": "0.9.12",
+	"version": "0.9.13",
 	"publisher": "coolchyni",
 	"description": "Debugger with gdb for c,c++,freepascal,fortran and more.",
 	"author": {
@@ -225,6 +225,16 @@
 								"description": "Set the charset of a string variable on display.  e.g. utf-8.",
 								"default": ""
 							},
+							"language":{
+								"type":"string",
+								"enum": [
+									"auto",
+									"c++",
+									"pascal"
+								],
+								"description":"The development language of for debug. e.g. c++ pascal ...",
+								"default":"auto"
+							},
 							"remote": {
 								"required": [
 									"enabled",
@@ -314,9 +324,9 @@
 										"type": "string",
 										"description": "Path prefix of remote source code.\n It will be replaced by localSrcPrefix if not empty. "
 									},
-									"loacalSrcPrefix": {
+									"localSrcPrefix": {
 										"type": "string",
-										"description": "Path prefix of local source code."
+										"description": "Path prefix of local source code. Default: ${workspaceRoot}"
 									},
 									"transfer": {
 										"type": "array",

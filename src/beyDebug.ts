@@ -73,7 +73,8 @@ export class BeyDebug extends DebugSession {
 	//default charset 
 	private defaultStringCharset?:string;
 	
-
+	private isSSH=false;
+	private workspathpath=vscode.workspace.workspaceFolders[0].uri.path;
 	private sendMsgToDebugConsole(msg: string, itype: EMsgType = EMsgType.info) {
 		let style = [TE_Style.Blue];
 		// todo:vscode.window.activeColorTheme.kind is proposed-api in low version 
@@ -133,6 +134,7 @@ export class BeyDebug extends DebugSession {
 		super(true);
 	}
 	private initDbSession(is_ssh:boolean){
+		this.isSSH=is_ssh;
 		if(is_ssh){
 			this.dbgSession = new BeyDbgSessionSSH('mi3');
 		}else{
@@ -339,7 +341,11 @@ export class BeyDebug extends DebugSession {
 		this.initDbSession(args.ssh?true:false);
 		vscode.commands.executeCommand('workbench.panel.repl.view.focus');
 		this.defaultStringCharset=args.defaultStringCharset;
-
+		if(args.language){
+			this.language=args.language;
+		}else{
+			this.language='auto';
+		}
 		// make sure to 'Stop' the buffered logging if 'trace' is not set
 
 		// wait until configuration has finished (and configurationDoneRequest has been called)
@@ -458,21 +464,25 @@ export class BeyDebug extends DebugSession {
 
 
 		}
-		
-		let checklang=(out:string)=>
-		{
-			if (out.indexOf('language')>0)
+		if(this.language=="auto"){
+			let checklang=(out:string)=>
 			{
-				let m=out.match('currently (.*)?"') ;
-				if ( m!==null){
-					this.language=m[1];
-				}
-				this.dbgSession.off(dbg.EVENT_DBG_CONSOLE_OUTPUT,checklang);
-			}	
-		};
-		this.dbgSession.on(dbg.EVENT_DBG_CONSOLE_OUTPUT,checklang);
+				if (out.indexOf('language')>0)
+				{
+					let m=out.match('currently (.*)?"') ;
+					if ( m!==null){
+						this.language=m[1];
+					}
+					this.dbgSession.off(dbg.EVENT_DBG_CONSOLE_OUTPUT,checklang);
+				}	
+			};
+			this.dbgSession.on(dbg.EVENT_DBG_CONSOLE_OUTPUT,checklang);
+			await this.dbgSession.execNativeCommand('show language');
+		}
+		
+		
 
-		await this.dbgSession.execNativeCommand('show language');
+		
 
 		await this.dbgSession.startInferior({stopAtStart: args.stopAtEntry}).catch((e) => {
 			this.sendMsgToDebugConsole(e.message, EMsgType.error);
@@ -599,8 +609,12 @@ export class BeyDebug extends DebugSession {
 		
 		let srcpath = args.source.path as string;
 		srcpath=path.normalize(srcpath);
+		if(this.language=='pascal'){ //pascal can find file use unit name
+			if(!srcpath.startsWith(this.workspathpath)){
+				srcpath=path.basename(srcpath);
+			}
+		}
 		
-
 		if (this._breakPoints.has(srcpath)) {
 			let bps: number[] = [];
 
