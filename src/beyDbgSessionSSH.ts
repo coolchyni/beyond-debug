@@ -304,6 +304,7 @@ export class BeyDbgSessionSSH extends DebugSession {
       let ssh = new BySSHClient();
       ssh.on('error', (e) => {
         this.emit('error', e);
+        return new Promise<void>((_,reject)=>{return reject()});
       });
       await ssh.doConnect(this.args, true);
       if (!ssh.tty) {
@@ -385,7 +386,7 @@ export class BeyDbgSessionSSH extends DebugSession {
                     vscode.window.showErrorMessage(`upload fail: ${trans.to} ${e.message}`);
                     this.emit(dbg.EVENT_DBG_CONSOLE_OUTPUT, `upload fail: ${trans.to} ${e.message}\n`);
                     _reject(false);
-                    return;
+                    return reject();
                   } else {
                     util.extensionContext.workspaceState.update(f_key, stat.mtimeMs);
                     this.emit(dbg.EVENT_DBG_CONSOLE_OUTPUT, `upload success: ${trans.to}\n`);
