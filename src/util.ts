@@ -51,3 +51,27 @@ export function isVsCodeInsiders(): boolean {
         }
     }
 }
+
+var isPascal:boolean=undefined;
+export function isLanguagePascal() {
+    if (isPascal==undefined){
+        let rootDir = vscode.workspace.rootPath;
+        const pascalExtensions = ['.lpr', '.dpr', '.pas'];
+        
+        for (const extension of pascalExtensions) {
+          const pascalFilePath = path.join(rootDir, `*${extension}`);
+          const files = fs.readdirSync(rootDir);
+          
+          for (const file of files) {
+            if (file.endsWith(extension)) {
+                isPascal=true;
+                return true;
+            }
+          }
+        }
+        isPascal =false;
+        return false;
+    }
+    return isPascal;
+    
+  }

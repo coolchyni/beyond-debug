@@ -1,3 +1,7 @@
+## [0.9.15] - 2023-05-30
+## Fixed 
+ - Resolve the issue of not being able to set breakpoints when using SSH for remote debugging in Linux.
+
 ## [0.9.14] - 2022-11-23
 ## Added 
  - Add language argument for launching c++, pascal program.

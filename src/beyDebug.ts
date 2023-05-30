@@ -22,6 +22,7 @@ import { AttachItemsProvider } from './attachToProcess';
 import path = require('path');
 import { BeyDbgSessionSSH } from './beyDbgSessionSSH';
 import { ILaunchRequestArguments,IAttachRequestArguments } from './argments';
+import { isLanguagePascal } from './util';
 
 function timeout(ms: number) {
 	return new Promise(resolve => setTimeout(resolve, ms));
@@ -134,6 +135,7 @@ export class BeyDebug extends DebugSession {
 		super(true);
 	}
 	private initDbSession(is_ssh:boolean){
+
 		this.isSSH=is_ssh;
 		if(is_ssh){
 			this.dbgSession = new BeyDbgSessionSSH('mi3');
@@ -346,6 +348,12 @@ export class BeyDebug extends DebugSession {
 		}else{
 			this.language='auto';
 		}
+		
+		if(this.language=="auto"){
+			if(isLanguagePascal()){
+				this.language="pascal";
+			}
+		}
 		// make sure to 'Stop' the buffered logging if 'trace' is not set
 
 		// wait until configuration has finished (and configurationDoneRequest has been called)
@@ -465,6 +473,7 @@ export class BeyDebug extends DebugSession {
 
 		}
 		if(this.language=="auto"){
+			
 			let checklang=(out:string)=>
 			{
 				if (out.indexOf('language')>0)
@@ -478,6 +487,8 @@ export class BeyDebug extends DebugSession {
 			};
 			this.dbgSession.on(dbg.EVENT_DBG_CONSOLE_OUTPUT,checklang);
 			await this.dbgSession.execNativeCommand('show language');
+		
+			
 		}
 		
 		
@@ -494,6 +505,17 @@ export class BeyDebug extends DebugSession {
 
 	protected async attachRequest(response: DebugProtocol.AttachResponse, _args:DebugProtocol.AttachRequestArguments) {
 		let args=_args as  IAttachRequestArguments;
+		if(args.language){
+			this.language=args.language;
+		}else{
+			this.language='auto';
+		}
+		
+		if(this.language=="auto"){
+			if(isLanguagePascal()){
+				this.language="pascal";
+			}
+		}
 		this.initDbSession(false);
 			//const attacher: AttachPicker = new AttachPicker(attachItemsProvider);
 			

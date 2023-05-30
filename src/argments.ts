@@ -49,4 +49,5 @@ export interface IAttachRequestArguments extends DebugProtocol.AttachRequestArgu
 	commandsBeforeExec?: string[];
 	varUpperCase: boolean;
 	defaultStringCharset?: string;
+	language?: string;
 }

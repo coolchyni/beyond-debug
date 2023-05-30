@@ -114,6 +114,18 @@ class BySSHClient extends Client {
         reject();
       })
 
+      this.once("end", () => {
+        vscode.window.showErrorMessage('Disconnected from ' + this.hostAddress);
+        reject();
+      })
+      this.once("close", () => {
+        vscode.window.showErrorMessage('Disconnected from ' + this.hostAddress);
+        reject();
+      })
+      // this.once("timeout", () => {
+      //   vscode.window.showErrorMessage('Timeout to connect to ' + this.hostAddress);
+      //   reject();
+      // })
       this.hostAddress = args.ssh.address;
       let address = args.ssh.address.split(':');
 
@@ -130,7 +142,7 @@ class BySSHClient extends Client {
       let passtype = args.ssh.passwordType.toLowerCase();
       this.passwordType = passtype;
       if (passtype == 'plaintext') {
-        this.connect({ host: host, port: port, username: args.ssh.username, password: args.ssh.password, timeout: args.ssh.timeout });
+        this.connect({ host: host, port: port, username: args.ssh.username, password: args.ssh.password, readyTimeout: args.ssh.timeout });
       } else if (passtype.startsWith('input')) {
         if (passtype === 'input') {
           util.extensionContext.workspaceState.update(this.getHostKey(this.hostAddress), undefined);
@@ -255,6 +267,7 @@ export class BeyDbgSessionSSH extends DebugSession {
   private workspacepath: string;
   private passwordType: String;
   private prodess: vscode.TaskProcessEndEvent;
+  private gdb_pid:string = '';
   /**
    *
    */
@@ -285,12 +298,47 @@ export class BeyDbgSessionSSH extends DebugSession {
   public async startIt(args: ILaunchRequestArguments) {
     this.args = args;
     await vscode.window.withProgress({
-      location: vscode.ProgressLocation.Notification
-    }, this.doStartIt.bind(this));
+      location: vscode.ProgressLocation.Notification,
+      cancellable: false
+    },async (progress, token) => {
+      await this.doStartIt(progress, token);
+      // Handle task completion or cancellation
+      // if (token.isCancellationRequested) {
+      //   vscode.window.showInformationMessage('Task was cancelled.');
+      // } else {
+      //   vscode.window.showInformationMessage('Task completed successfully.');
+      // }
+    });
+
     //vscode.window.showInformationMessage("started");
   }
 
-  private async doStartIt(process: vscode.Progress<{ message?: string; increment?: number }>) {
+  private async tryGetPid(){
+     // 使用 ps 命令查找 GDB 进程 PID
+     const psCommand = 'ps -ef | grep "[g]db" | awk \'{print $2}\'';
+     this.sshclient.exec(psCommand, ((error, channel) => {
+       if (error) {
+         console.error('执行 ps 命令时出错:', error);
+         return;
+       }
+       let pid="";
+       channel.on('data', (data) => {
+          pid+=data.toString();
+          //console.log('ps 命令输出:', data.toString());
+        });
+        channel.on('close', (code) => {
+          if( code == 0 ){
+            let pids=pid.trimEnd().split('\n');
+            if(pids.length>0){
+              this.gdb_pid=pids[pids.length-1];
+              return 
+            }
+          }
+          this.gdb_pid = '';
+        });
+     }));
+  }
+  private async doStartIt(process: vscode.Progress<{ message?: string; increment?: number }>,token: vscode.CancellationToken) {
     let key = this.args.ssh.address;
     if (!this.args.ssh.timeout) { this.args.ssh.timeout = 1000; }
     if (!this.args.ssh.passwordType) { this.args.ssh.passwordType = "none"; }
@@ -406,11 +454,14 @@ export class BeyDbgSessionSSH extends DebugSession {
             this.clientChannel = channel;
             this.start(channel, channel);
             this.executeCommand(`inferior-tty-set ${tty}`);
+            this.tryGetPid();
+
             resolve();
           });
         });
       } else {
         this.sshclient.exec(`gdb --interpreter mi`, (error, channel) => {
+          this.tryGetPid();
           this.clientChannel = channel;
           this.start(channel, channel);
           this.executeCommand(`inferior-tty-set ${tty}`);
@@ -425,7 +476,17 @@ export class BeyDbgSessionSSH extends DebugSession {
   public pause() {
     return new Promise<void>((resolve, reject): void => {
       if (this.clientChannel) {
-        this.clientChannel.signal("SIGINT");
+        if(this.gdb_pid !== "") {
+          this.sshclient.exec(`kill -2 ${this.gdb_pid}`, (error, channel) => {
+          if (error) {
+            reject();
+          } else {
+            resolve();
+          }
+        });
+        }else{
+          this.clientChannel.signal("SIGINT");
+        }
         resolve();
       } else {
         reject();
