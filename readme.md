@@ -57,7 +57,7 @@ If the argument `program` is set and only one process is found ,the debugger wil
     "type": "by-gdb",
     "request": "attach",
     "name": "Attach(gdb)",
-    "program": "{fileBasenameNoExtension}",
+    "program": "${fileBasenameNoExtension}",
     "cwd": "${workspaceRoot}"
 }
 ```
