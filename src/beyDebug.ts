@@ -159,6 +159,15 @@ export class BeyDebug extends DebugSession {
 			this._isRunning = true;
 			logger.log(out);
 		});
+		this.dbgSession.on(dbg.EVENT_STEP_FINISHED, (e: dbg.IStepFinishedEvent) => {
+			if(e.frame.filename==undefined){
+				// this.dbgSession.execNativeCommand('nexti');
+				// this.dbgSession.execNativeCommand('finish');
+				// this.dbgSession.execNativeCommand('next');
+				
+			}
+			//logger.log('step finished');
+		});
 		this.dbgSession.on(dbg.EVENT_TARGET_STOPPED, (e: dbg.ITargetStoppedEvent) => {
 			logger.log("stoped:" + e.reason.toString());
 			this._isRunning = false;
@@ -178,9 +187,6 @@ export class BeyDebug extends DebugSession {
 				/** The target encountered an exception (this is LLDB specific). */
 				case TargetStopReason.ExceptionReceived:
 					break;
-
-
-
 				/** An inferior terminated because it received a signal. */
 				case TargetStopReason.ExitedSignalled:
 				/** An inferior terminated (for some reason, check exitCode for clues). */
@@ -693,11 +699,20 @@ export class BeyDebug extends DebugSession {
 		let r = await this.dbgSession.getThreads();
 		this._currentThreadId = r.current;
 		let idtype=0;
+		const regex = /LWP (\d+)/;
 		if(r.current){
-			if(r.current.targetId.startsWith('LWP')){
-				idtype=1;
-			}else if(r.current.targetId.startsWith('Thread')){
-				idtype=2;
+			
+			const match = r.current.targetId.match(regex);
+
+			if (match) {
+				idtype=3;
+				
+			} else {
+				if(r.current.targetId.startsWith('LWP')){
+					idtype=1;
+				}else if(r.current.targetId.startsWith('Thread')){
+					idtype=2;
+				}
 			}
 		}
 		r.all.forEach((th) => {
@@ -710,7 +725,17 @@ export class BeyDebug extends DebugSession {
 				let ids=th.targetId.split('.');
 				let tid=Number.parseInt(ids[1]);
 				threads.push(new Thread(th.id, `Thread #${tid} ${th.name?th.name:''}`));
-			}else{
+			}else if(idtype==3){
+				const match = th.targetId.match(regex);
+
+				if (match) {
+					let tid=Number.parseInt(match[1]);
+					threads.push(new Thread(th.id, `Thread #${tid}`));
+				} else {
+					threads.push(new Thread(th.id, th.targetId));
+				}
+			}
+			else{
 				threads.push(new Thread(th.id, th.targetId));
 			}
 			

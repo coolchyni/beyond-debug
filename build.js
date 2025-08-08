@@ -5,7 +5,7 @@ require('esbuild').build({
     entryPoints: ['./src/extension.ts'],
     bundle: true,
     outfile: 'out/extension.js',
-    plugins: platform=="win32"?[]:[nativeNodeModulesPlugin],
+    plugins: platform=="win32"?[nativeNodeModulesPlugin]:[],
     external: ['vscode'],
     format:'cjs',
     platform:'node'
