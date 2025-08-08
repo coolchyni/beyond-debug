@@ -47,7 +47,6 @@
 	"dependencies": {
 		"@vscode/debugadapter": "1.57.0",
 		"await-notify": "1.0.1",
-		"esbuild": "^0.25.8",
 		"iconv-lite": "0.6.2",
 		"pegjs-require-import": "^0.0.6"
 	},
@@ -60,6 +59,7 @@
 		"@types/vscode": "^1.65.0",
 		"@typescript-eslint/eslint-plugin": "^3.8.0",
 		"@typescript-eslint/parser": "^3.8.0",
+		"esbuild": "^0.25.8",
 		"esbuild-native-node-modules-plugin": "^1.0.3",
 		"eslint": "^7.6.0",
 		"eslint-plugin-react": "^7.30.0",

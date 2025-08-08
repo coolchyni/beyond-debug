@@ -10,4 +10,5 @@
     "typescript.tsc.autoDetect": "off",
     "typescript.tsdk": "node_modules\\typescript\\lib",
     "cmake.configureOnOpen": false,
+    "kiroAgent.configureMCP": "Disabled",
 }
