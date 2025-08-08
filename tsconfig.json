@@ -21,7 +21,10 @@
 		"inlineSourceMap": false,
 		"preserveConstEnums": true,
 		"strictNullChecks": false,
-		"noUnusedParameters": false
+		"noUnusedParameters": false,
+		"moduleResolution": "node",
+		"allowSyntheticDefaultImports": true,
+		"esModuleInterop": true
 	},
 	"exclude": [
 		"node_modules"

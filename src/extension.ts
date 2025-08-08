@@ -17,6 +17,7 @@ import { LogLevel } from '@vscode/debugadapter/lib/logger';
 import { TextEncoder } from 'util';
 import { pathToFileURL } from 'url';
 import * as memview from './beyMemoryView';
+import { createMcpManager } from './mcp';
 /*
  * The compile time flag 'runMode' controls how the debug adapter is run.
  * Please note: the test suite only supports 'external' mode.
@@ -32,20 +33,71 @@ export function activate(context: vscode.ExtensionContext) {
 	//const attachItemsProvider: AttachItemsProvider = NativeAttachItemsProviderFactory.Get();
 	//const attacher: AttachPicker = new AttachPicker(attachItemsProvider);
 	//context.subscriptions.push(vscode.commands.registerCommand('extension.pickNativeProcess', () => attacher.ShowAttachEntries()));
-		
+
 	let outchannel = vscode.window.createOutputChannel('BeyondDebug');
 	logger.init((e) => {
 		outchannel.appendLine(e.body.output);
 	}, undefined, true);
 	logger.setup(LogLevel.Log);
 	util.setExtensionContext(context);
+
+	// Initialize MCP Manager
+	const mcpManager = createMcpManager(context);
+	context.subscriptions.push(mcpManager);
+
+	// Initialize MCP functionality
+	mcpManager.initialize().catch(error => {
+		console.error('Failed to initialize MCP:', error);
+	});
+
+	// Register MCP related commands
+	context.subscriptions.push(
+		vscode.commands.registerCommand('beyondDebug.mcp.start', async () => {
+			try {
+				await mcpManager.restart();
+				vscode.window.showInformationMessage('MCP Server started');
+			} catch (error) {
+				vscode.window.showErrorMessage(`Failed to start MCP server: ${error.message}`);
+			}
+		}),
+
+		vscode.commands.registerCommand('beyondDebug.mcp.stop', async () => {
+			try {
+				await mcpManager.dispose();
+				vscode.window.showInformationMessage('MCP Server stopped');
+			} catch (error) {
+				vscode.window.showErrorMessage(`Failed to stop MCP server: ${error.message}`);
+			}
+		}),
+
+		vscode.commands.registerCommand('beyondDebug.mcp.restart', async () => {
+			try {
+				await mcpManager.restart();
+				vscode.window.showInformationMessage('MCP Server restarted');
+			} catch (error) {
+				vscode.window.showErrorMessage(`Failed to restart MCP server: ${error.message}`);
+			}
+		}),
+
+		vscode.commands.registerCommand('beyondDebug.mcp.status', () => {
+			const status = mcpManager.getMcpStatus();
+			const message = `MCP Status:
+- Supported: ${status.supported}
+- Enabled: ${status.enabled}  
+- Running: ${status.running}
+- API Available: ${status.apiAvailable}
+${status.serverInfo ? `- Server URL: ${status.serverInfo.url}` : ''}`;
+			vscode.window.showInformationMessage(message);
+		})
+	);
+
 	// register a configuration provider for 'hi-gdb' debug type
 	const provider = new HiDebugConfigurationProvider();
 	context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('by-gdb', provider));
 
-	
+
 	context.subscriptions.push(
-		vscode.commands.registerTextEditorCommand('bydebug.ViewMemory',memview.cmdViewMemoryWithHexEdit)
+		vscode.commands.registerTextEditorCommand('bydebug.ViewMemory', memview.cmdViewMemoryWithHexEdit)
 	);
 
 
@@ -60,7 +112,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 		case 'inline':
 			// run the debug adapter inside the extension and directly talk to it
-			factory = new InlineDebugAdapterFactory();
+			factory = new InlineDebugAdapterFactory(mcpManager);
 			break;
 	}
 
@@ -95,7 +147,7 @@ class HiDebugConfigurationProvider implements vscode.DebugConfigurationProvider 
 			}
 		}
 
-		if (!config.program && config.request!='attach') {
+		if (!config.program && config.request != 'attach') {
 			return vscode.window.showInformationMessage("Cannot find a program to debug").then(_ => {
 				return undefined;	// abort launch
 			});
@@ -135,10 +187,33 @@ class HiDebugAdapterServerDescriptorFactory implements vscode.DebugAdapterDescri
 
 
 class InlineDebugAdapterFactory implements vscode.DebugAdapterDescriptorFactory {
+	private mcpManager: any;
+
+	constructor(mcpManager: any) {
+		this.mcpManager = mcpManager;
+	}
 
 	createDebugAdapterDescriptor(_session: vscode.DebugSession): ProviderResult<vscode.DebugAdapterDescriptor> {
-		let dbg=new BeyDebug();
+		let dbg = new BeyDebug();
 		memview.setCurrentDebugSession(dbg.getBeyDbgSession());
+
+		// Notify MCP Manager about debug session start
+		if (this.mcpManager) {
+			this.mcpManager.onDebugSessionStart(dbg);
+		}
+
+		// Create a wrapper to handle session end
+		const originalDispose = dbg.dispose;
+		dbg.dispose = () => {
+			// Notify MCP Manager about debug session end
+			if (this.mcpManager) {
+				this.mcpManager.onDebugSessionEnd();
+			}
+			if (originalDispose) {
+				originalDispose.call(dbg);
+			}
+		};
+
 		return new vscode.DebugAdapterInlineImplementation(dbg);
 	}
 }

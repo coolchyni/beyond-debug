@@ -45,6 +45,7 @@
 		"esbuild-watch": "npm run -S esbuild-base -- --sourcemap --watch"
 	},
 	"dependencies": {
+		"@modelcontextprotocol/sdk": "^1.17.2",
 		"@vscode/debugadapter": "1.57.0",
 		"await-notify": "1.0.1",
 		"iconv-lite": "0.6.2",
@@ -78,12 +79,57 @@
 		"onDebug"
 	],
 	"contributes": {
+		"configuration": {
+			"title": "Beyond Debug MCP",
+			"properties": {
+				"beyondDebug.mcp.enabled": {
+					"type": "boolean",
+					"default": false,
+					"description": "Enable MCP server for AI debugging assistance"
+				},
+				"beyondDebug.mcp.port": {
+					"type": "number",
+					"default": 0,
+					"description": "Port for MCP server (0 for auto-assign)"
+				},
+				"beyondDebug.mcp.host": {
+					"type": "string",
+					"default": "localhost",
+					"description": "Host for MCP server"
+				},
+				"beyondDebug.mcp.autoRegister": {
+					"type": "boolean",
+					"default": false,
+					"description": "Automatically register MCP server with VS Code"
+				}
+			}
+		},
 		"commands": [
 			{
 				"title": "View Memory",
 				"command": "bydebug.ViewMemory",
 				"icon": "$(symbol-parameter)",
 				"category": "byeond"
+			},
+			{
+				"command": "beyondDebug.mcp.start",
+				"title": "Start MCP Server",
+				"category": "Beyond Debug"
+			},
+			{
+				"command": "beyondDebug.mcp.stop",
+				"title": "Stop MCP Server",
+				"category": "Beyond Debug"
+			},
+			{
+				"command": "beyondDebug.mcp.restart",
+				"title": "Restart MCP Server",
+				"category": "Beyond Debug"
+			},
+			{
+				"command": "beyondDebug.mcp.status",
+				"title": "Show MCP Status",
+				"category": "Beyond Debug"
 			}
 		],
 		"menus": {
