@@ -6,8 +6,15 @@ import { randomBytes } from 'crypto';
 import { z } from 'zod';
 import { BeyDebug } from '../beyDebug';
 import * as dbg from '../dbgmits';
-import { McpErrorHandler, DebugToolResponse } from './errorHandler';
 import { StatusManager } from './statusManager';
+
+// MCP tool response type
+interface McpToolResponse {
+    content: Array<{
+        type: "text";
+        text: string;
+    }>;
+}
 
 export class DebugMcpServer {
     private server: McpServer;
@@ -54,7 +61,12 @@ export class DebugMcpServer {
             },
             async ({ frameId }) => {
                 const res = await this.getVariables({ frameId: frameId ?? 0 });
-                return res;
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify(res, null, 2)
+                    }]
+                };
             }
         );
 
@@ -66,7 +78,13 @@ export class DebugMcpServer {
                 line: z.number().int().positive().describe("Line number")
             },
             async ({ file, line }) => {
-                return this.setBreakpoint({ file, line });
+                const res = await this.setBreakpoint({ file, line });
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify(res, null, 2)
+                    }]
+                };
             }
         );
 
@@ -77,7 +95,13 @@ export class DebugMcpServer {
                 command: z.string().describe("GDB command to execute")
             },
             async ({ command }) => {
-                return this.executeGdbCommand({ command });
+                const res = await this.executeGdbCommand({ command });
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify(res, null, 2)
+                    }]
+                };
             }
         );
 
@@ -86,7 +110,13 @@ export class DebugMcpServer {
             "Get current debug session status",
             {},
             async () => {
-                return this.getDebugStatus();
+                const res = await this.getDebugStatus();
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify(res, null, 2)
+                    }]
+                };
             }
         );
 
@@ -99,7 +129,13 @@ export class DebugMcpServer {
                 cwd: z.string().optional().describe("Working directory (optional)")
             },
             async ({ program, args, cwd }) => {
-                return this.startDebugging({ program, args, cwd });
+                const res = await this.startDebugging({ program, args, cwd });
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify(res, null, 2)
+                    }]
+                };
             }
         );
 
@@ -108,7 +144,13 @@ export class DebugMcpServer {
             "Stop the current debugging session",
             {},
             async () => {
-                return this.stopDebugging();
+                const res = await this.stopDebugging();
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify(res, null, 2)
+                    }]
+                };
             }
         );
     }
@@ -135,7 +177,7 @@ export class DebugMcpServer {
                 console.log('MCP transport connection closed');
             };
             this.transport.onerror = (error: Error) => {
-                McpErrorHandler.handleNetworkError(error, { action: 'transport_error' });
+                console.error('MCP transport error:', error);
             };
 
             // Connect the server to the transport
@@ -187,16 +229,13 @@ export class DebugMcpServer {
                         this.port = 0;
                         this.httpServer!.listen(0, this.host);
                     } else {
-                        McpErrorHandler.handleServerStartError(error, { port: this.port, host: this.host });
+                        console.error('HTTP server error:', error);
                         reject(error);
                     }
                 });
             });
         } catch (error) {
-            McpErrorHandler.handleServerStartError(error, {
-                port: this.port,
-                host: this.host
-            });
+            console.error('Failed to start MCP server:', error);
             throw error;
         }
     }
@@ -220,7 +259,7 @@ export class DebugMcpServer {
             }
             this.statusManager.dispose();
         } catch (error) {
-            McpErrorHandler.handleNetworkError(error, { action: 'stop_server' });
+            console.error('Failed to stop MCP server:', error);
             throw error;
         }
     }
@@ -265,10 +304,14 @@ export class DebugMcpServer {
     }
 
     // Tool implementation methods
-    private async getVariables(args: any): Promise<DebugToolResponse> {
+    private async getVariables(args: any): Promise<any> {
         // Check debug session status
         if (!this.statusManager.validateDebugSession()) {
-            return McpErrorHandler.handleNoDebugSession('get_variables');
+            return {
+                success: false,
+                error: 'No active debug session',
+                message: 'Please start a debug session first'
+            };
         }
         
         try {
@@ -276,28 +319,37 @@ export class DebugMcpServer {
             
             // Validate frame ID
             if (typeof frameId !== 'number' || frameId < 0) {
-                return McpErrorHandler.handleToolError(
-                    'get_variables',
-                    new Error(`Invalid frame ID: ${frameId}`),
-                    { frameId }
-                );
+                return {
+                    success: false,
+                    error: 'Invalid frame ID',
+                    message: `Frame ID must be a non-negative number, got: ${frameId}`
+                };
+            }
+
+            const sessionAny = this.debugSession as any;
+            const beyDbgSession = sessionAny?.getBeyDbgSession?.();
+            
+            if (!beyDbgSession) {
+                return {
+                    success: false,
+                    error: 'Debug session access error',
+                    message: 'Unable to access debug session internals'
+                };
             }
             
-            const dbgSession = this.debugSession!.getBeyDbgSession();
-            
             // Get variables from debug session
-            const variables = await dbgSession.getStackFrameVariables(dbg.VariableDetailLevel.Simple, {
+            const variables = await beyDbgSession.getStackFrameVariables(dbg.VariableDetailLevel.Simple, {
                 frameLevel: frameId
             });
             
             const result = {
                 frameId: frameId,
-                arguments: variables.args.map(v => ({
+                arguments: variables.args.map((v: any) => ({
                     name: v.name,
                     value: v.value || '<not available>',
                     type: v.type || 'unknown'
                 })),
-                locals: variables.locals.map(v => ({
+                locals: variables.locals.map((v: any) => ({
                     name: v.name,
                     value: v.value || '<not available>',
                     type: v.type || 'unknown'
@@ -305,17 +357,34 @@ export class DebugMcpServer {
             };
             
             return {
-                content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+                success: true,
+                result: result,
+                frameId: frameId,
+                variableCount: result.arguments.length + result.locals.length
             };
         } catch (error) {
-            return McpErrorHandler.handleToolError('get_variables', error, { frameId: args.frameId });
+            return {
+                success: false,
+                error: 'Failed to get variables',
+                message: error instanceof Error ? error.message : String(error),
+                frameId: args.frameId
+            };
         }
     }
 
-    private async setBreakpoint(args: any): Promise<DebugToolResponse> {
+    private async setBreakpoint(args: any): Promise<McpToolResponse> {
         // Check debug session status
         if (!this.statusManager.validateDebugSession()) {
-            return McpErrorHandler.handleNoDebugSession('set_breakpoint');
+            return {
+                content: [{
+                    type: "text",
+                    text: JSON.stringify({
+                        success: false,
+                        error: 'No active debug session',
+                        message: 'Please start a debug session first'
+                    }, null, 2)
+                }]
+            };
         }
         
         try {
@@ -323,19 +392,29 @@ export class DebugMcpServer {
             
             // Validate arguments
             if (!file || typeof file !== 'string') {
-                return McpErrorHandler.handleToolError(
-                    'set_breakpoint',
-                    new Error('File path is required and must be a string'),
-                    { file, line }
-                );
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({
+                            success: false,
+                            error: 'Invalid arguments',
+                            message: 'File path is required and must be a string'
+                        }, null, 2)
+                    }]
+                };
             }
             
             if (!line || typeof line !== 'number' || line <= 0) {
-                return McpErrorHandler.handleToolError(
-                    'set_breakpoint',
-                    new Error('Line number is required and must be a positive number'),
-                    { file, line }
-                );
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({
+                            success: false,
+                            error: 'Invalid arguments',
+                            message: 'Line number is required and must be a positive number'
+                        }, null, 2)
+                    }]
+                };
             }
             
             const dbgSession = this.debugSession!.getBeyDbgSession();
@@ -352,14 +431,32 @@ export class DebugMcpServer {
                 }]
             };
         } catch (error) {
-            return McpErrorHandler.handleToolError('set_breakpoint', error, { file: args.file, line: args.line });
+            return {
+                content: [{
+                    type: "text",
+                    text: JSON.stringify({
+                        success: false,
+                        error: 'Failed to set breakpoint',
+                        message: error instanceof Error ? error.message : String(error)
+                    }, null, 2)
+                }]
+            };
         }
     }
 
-    private async executeGdbCommand(args: any): Promise<DebugToolResponse> {
+    private async executeGdbCommand(args: any): Promise<McpToolResponse> {
         // Check debug session status
         if (!this.statusManager.validateDebugSession()) {
-            return McpErrorHandler.handleNoDebugSession('execute_gdb_command');
+            return {
+                content: [{
+                    type: "text",
+                    text: JSON.stringify({
+                        success: false,
+                        error: 'No active debug session',
+                        message: 'Please start a debug session first'
+                    }, null, 2)
+                }]
+            };
         }
         
         try {
@@ -367,11 +464,16 @@ export class DebugMcpServer {
             
             // Validate command
             if (!command || typeof command !== 'string') {
-                return McpErrorHandler.handleToolError(
-                    'execute_gdb_command',
-                    new Error('Command is required and must be a string'),
-                    { command }
-                );
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({
+                            success: false,
+                            error: 'Invalid arguments',
+                            message: 'Command is required and must be a string'
+                        }, null, 2)
+                    }]
+                };
             }
             
             // Check for potentially dangerous commands
@@ -379,11 +481,16 @@ export class DebugMcpServer {
             const commandLower = command.toLowerCase().trim();
             
             if (dangerousCommands.some(dangerous => commandLower.startsWith(dangerous))) {
-                return McpErrorHandler.handleToolError(
-                    'execute_gdb_command',
-                    new Error(`Command '${command}' is not allowed for security reasons`),
-                    { command }
-                );
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({
+                            success: false,
+                            error: 'Command not allowed',
+                            message: `Command '${command}' is not allowed for security reasons`
+                        }, null, 2)
+                    }]
+                };
             }
             
             const dbgSession = this.debugSession!.getBeyDbgSession();
@@ -398,11 +505,20 @@ export class DebugMcpServer {
                 }]
             };
         } catch (error) {
-            return McpErrorHandler.handleToolError('execute_gdb_command', error, { command: args.command });
+            return {
+                content: [{
+                    type: "text",
+                    text: JSON.stringify({
+                        success: false,
+                        error: 'Failed to execute command',
+                        message: error instanceof Error ? error.message : String(error)
+                    }, null, 2)
+                }]
+            };
         }
     }
 
-    private async getDebugStatus(): Promise<DebugToolResponse> {
+    private async getDebugStatus(): Promise<McpToolResponse> {
         try {
             // Get comprehensive status from status manager
             const detailedStatus = this.statusManager.getDetailedStatus();
@@ -424,30 +540,49 @@ export class DebugMcpServer {
                 content: [{ type: "text", text: JSON.stringify(status, null, 2) }]
             };
         } catch (error) {
-            return McpErrorHandler.handleToolError('get_debug_status', error);
+            return {
+                content: [{
+                    type: "text",
+                    text: JSON.stringify({
+                        success: false,
+                        error: 'Failed to get debug status',
+                        message: error instanceof Error ? error.message : String(error)
+                    }, null, 2)
+                }]
+            };
         }
     }
 
-    private async startDebugging(args: any): Promise<DebugToolResponse> {
+    private async startDebugging(args: any): Promise<McpToolResponse> {
         try {
             const { program, args: programArgs, cwd } = args;
             
             // Validate program path
             if (!program || typeof program !== 'string') {
-                return McpErrorHandler.handleToolError(
-                    'start_debugging',
-                    new Error('Program path is required and must be a string'),
-                    { program, programArgs, cwd }
-                );
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({
+                            success: false,
+                            error: 'Invalid arguments',
+                            message: 'Program path is required and must be a string'
+                        }, null, 2)
+                    }]
+                };
             }
             
             // Check if there's already an active debug session
             if (vscode.debug.activeDebugSession) {
-                return McpErrorHandler.handleToolError(
-                    'start_debugging',
-                    new Error('A debug session is already active. Stop it first.'),
-                    { program, activeSession: vscode.debug.activeDebugSession.name }
-                );
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({
+                            success: false,
+                            error: 'Debug session already active',
+                            message: 'A debug session is already active. Stop it first.'
+                        }, null, 2)
+                    }]
+                };
             }
             
             // Start debugging session using VS Code debug API
@@ -467,22 +602,32 @@ export class DebugMcpServer {
                     content: [{ type: "text", text: `Debug session started for ${program}` }]
                 };
             } else {
-                return McpErrorHandler.handleToolError(
-                    'start_debugging',
-                    new Error('Failed to start debug session - VS Code returned false'),
-                    { program, debugConfig }
-                );
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({
+                            success: false,
+                            error: 'Failed to start debugging',
+                            message: 'VS Code returned false when attempting to start debug session'
+                        }, null, 2)
+                    }]
+                };
             }
         } catch (error) {
-            return McpErrorHandler.handleToolError('start_debugging', error, { 
-                program: args.program, 
-                programArgs: args.args, 
-                cwd: args.cwd 
-            });
+            return {
+                content: [{
+                    type: "text",
+                    text: JSON.stringify({
+                        success: false,
+                        error: 'Failed to start debugging',
+                        message: error instanceof Error ? error.message : String(error)
+                    }, null, 2)
+                }]
+            };
         }
     }
 
-    private async stopDebugging(): Promise<DebugToolResponse> {
+    private async stopDebugging(): Promise<McpToolResponse> {
         try {
             if (vscode.debug.activeDebugSession) {
                 const sessionName = vscode.debug.activeDebugSession.name;
@@ -497,7 +642,16 @@ export class DebugMcpServer {
                 };
             }
         } catch (error) {
-            return McpErrorHandler.handleToolError('stop_debugging', error);
+            return {
+                content: [{
+                    type: "text",
+                    text: JSON.stringify({
+                        success: false,
+                        error: 'Failed to stop debugging',
+                        message: error instanceof Error ? error.message : String(error)
+                    }, null, 2)
+                }]
+            };
         }
     }
 }

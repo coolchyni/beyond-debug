@@ -1,315 +1,257 @@
 import * as vscode from 'vscode';
 import { DebugMcpServer } from './server';
 import { BeyDebug } from '../beyDebug';
-import { McpErrorHandler, McpErrorType } from './errorHandler';
 
-interface McpServerConfig {
-    enabled: boolean;
-    port: number;
-    host: string;
-    autoRegister: boolean;
-}
-
-interface McpStatus {
-    supported: boolean;
-    enabled: boolean;
-    running: boolean;
-    apiAvailable: boolean;
-    serverInfo?: any;
-    lastError?: string;
-    configValid: boolean;
-}
-
-export class McpManager implements vscode.Disposable {
+export class McpManager {
     private mcpServer: DebugMcpServer | null = null;
     private context: vscode.ExtensionContext;
     private workspaceRoot: string;
     private currentDebugSession: BeyDebug | null = null;
-    private config: McpServerConfig;
-    private configurationDisposable: vscode.Disposable | null = null;
+    private autoRegisterEnabled: boolean = false;
+    private mcpServerDisposable: vscode.Disposable | null = null;
     private didChangeEmitter = new vscode.EventEmitter<void>();
-    private lastError: string | null = null;
-    public readonly onDidChange = this.didChangeEmitter.event;
 
     constructor(context: vscode.ExtensionContext, workspaceRoot: string) {
         this.context = context;
         this.workspaceRoot = workspaceRoot;
-        this.config = this.loadAndValidateConfig();
         
         // Listen for configuration changes
-        this.configurationDisposable = vscode.workspace.onDidChangeConfiguration(
-            this.onConfigurationChanged.bind(this)
+        this.context.subscriptions.push(
+            vscode.workspace.onDidChangeConfiguration(this.onConfigurationChanged.bind(this))
         );
+        
+        // Read configuration settings
+        this.updateConfigSettings();
     }
 
     async initialize(): Promise<void> {
-        try {
-            // Only start MCP server if enabled and supported
-            if (this.config.enabled && this.isMcpSupported()) {
-                await this.startMcpServer();
-                
-                if (this.config.autoRegister) {
-                    await this.registerServer();
-                }
-            }
-        } catch (error) {
-            this.handleError('Failed to initialize MCP manager', error);
+        // Check if MCP API is available before proceeding
+        if (!this.isMcpApiAvailable()) {
+            console.log('MCP API not available, skipping MCP initialization');
+            return;
+        }
+
+        // Check if MCP server should be started based on configuration
+        if (this.isMcpEnabled()) {
+            await this.startMcpServer();
+            // Register the MCP server definition provider
+            await this.registerServer();
         }
     }
 
-    private loadAndValidateConfig(): McpServerConfig {
-        try {
-            const vsConfig = vscode.workspace.getConfiguration('beyondDebug.mcp');
-            
-            const config: McpServerConfig = {
-                enabled: vsConfig.get<boolean>('enabled', false),
-                port: vsConfig.get<number>('port', 0),
-                host: vsConfig.get<string>('host', 'localhost'),
-                autoRegister: vsConfig.get<boolean>('autoRegister', false)
-            };
-
-            // Validate configuration
-            this.validateConfig(config);
-            
-            this.lastError = null; // Clear any previous config errors
-            return config;
-        } catch (error) {
-            this.handleConfigurationError(error);
-            // Return default config on error
-            return {
-                enabled: false,
-                port: 0,
-                host: 'localhost',
-                autoRegister: false
-            };
-        }
+    private isMcpEnabled(): boolean {
+        const config = vscode.workspace.getConfiguration('beyondDebug.mcp');
+        return config.get<boolean>('enabled', false);
     }
-
-    private validateConfig(config: McpServerConfig): void {
-        if (config.port < 0 || config.port > 65535) {
-            throw new Error(`Invalid port number: ${config.port}. Must be between 0 and 65535.`);
-        }
-
-        if (!config.host || config.host.trim() === '') {
-            throw new Error('Host cannot be empty');
-        }
-
-        // Validate host format (basic check)
-        const hostRegex = /^[a-zA-Z0-9.-]+$/;
-        if (!hostRegex.test(config.host)) {
-            throw new Error(`Invalid host format: ${config.host}`);
-        }
-    }
-
-    private handleConfigurationError(error: unknown): void {
-        const mcpError = McpErrorHandler.handleConfigurationError(error, {
-            configSection: 'beyondDebug.mcp'
-        });
-        this.lastError = mcpError.message;
-    }
-
-    private handleError(message: string, error: unknown): void {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        this.lastError = `${message}: ${errorMessage}`;
-        console.error(this.lastError);
+    
+    private updateConfigSettings(): void {
+        const config = vscode.workspace.getConfiguration('beyondDebug.mcp');
+        this.autoRegisterEnabled = config.get<boolean>('autoRegister', false);
     }
 
     private async startMcpServer(): Promise<void> {
         if (this.mcpServer) {
-            return;
+            return; // Already running
         }
 
         try {
+            // Read port settings from configuration, default to 0 (auto-assign)
+            const config = vscode.workspace.getConfiguration('beyondDebug.mcp');
+            const preferredPort = config.get<number>('port', 0);
+            const host = config.get<string>('host', 'localhost');
+            
             this.mcpServer = new DebugMcpServer(
                 this.workspaceRoot,
                 this.currentDebugSession || undefined,
-                this.config.port,
-                this.config.host
+                preferredPort,
+                host
             );
-            
             await this.mcpServer.start();
             
-            this.lastError = null; // Clear any previous errors
+            console.log(`Beyond Debug MCP Server started on ${this.mcpServer.getServerUrl()}`);
             
+            // Trigger server definitions update
+            this.didChangeEmitter.fire();
+            
+            // Show information message
             vscode.window.showInformationMessage(
-                `Debug MCP Server started on ${this.mcpServer.getServerUrl()}`
+                `Beyond Debug MCP Server started on ${this.mcpServer.getServerUrl()}`
             );
             
-            this.didChangeEmitter.fire();
         } catch (error) {
-            const mcpError = McpErrorHandler.handleServerStartError(error, {
-                port: this.config.port,
-                host: this.config.host,
-                workspaceRoot: this.workspaceRoot
-            });
-            this.lastError = mcpError.message;
-            throw error;
+            console.error('Failed to start Beyond Debug MCP Server:', error);
+            vscode.window.showErrorMessage(`Failed to start Beyond Debug MCP Server: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
     private async stopMcpServer(): Promise<void> {
-        if (this.mcpServer) {
+        if (!this.mcpServer) {
+            return; // Not running
+        }
+
+        try {
             await this.mcpServer.stop();
             this.mcpServer = null;
+            
+            console.log('Beyond Debug MCP Server stopped successfully');
+            vscode.window.showInformationMessage('Beyond Debug MCP Server stopped');
+            
+            // Trigger server definitions update
             this.didChangeEmitter.fire();
+            
+        } catch (error) {
+            console.error('Failed to stop Beyond Debug MCP Server:', error);
+            vscode.window.showErrorMessage(`Failed to stop Beyond Debug MCP Server: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
     private async onConfigurationChanged(event: vscode.ConfigurationChangeEvent): Promise<void> {
+        // Update all configuration settings
         if (event.affectsConfiguration('beyondDebug.mcp')) {
-            try {
-                const oldConfig = this.config;
-                this.config = this.loadAndValidateConfig();
-                
-                // Check if restart is needed
-                const needsRestart = this.configRequiresRestart(oldConfig, this.config);
-                
-                if (this.config.enabled && this.isMcpSupported()) {
-                    if (needsRestart) {
-                        await this.restart();
-                    }
-                } else {
-                    await this.stopMcpServer();
-                }
-                
-                this.reportConfigurationStatus();
-            } catch (error) {
-                this.handleError('Failed to handle configuration change', error);
+            this.updateConfigSettings();
+        }
+        
+        // Handle MCP server enable/disable
+        if (event.affectsConfiguration('beyondDebug.mcp.enabled')) {
+            const mcpEnabled = this.isMcpEnabled();
+            
+            if (mcpEnabled && !this.mcpServer) {
+                // MCP was enabled, start server
+                await this.startMcpServer();
+                await this.registerServer();
+            } else if (!mcpEnabled && this.mcpServer) {
+                // MCP was disabled, stop server
+                await this.stopMcpServer();
             }
         }
-    }
-
-    private configRequiresRestart(oldConfig: McpServerConfig, newConfig: McpServerConfig): boolean {
-        return (
-            oldConfig.enabled !== newConfig.enabled ||
-            oldConfig.port !== newConfig.port ||
-            oldConfig.host !== newConfig.host
-        );
-    }
-
-    private reportConfigurationStatus(): void {
-        const status = this.getMcpStatus();
         
-        if (!status.configValid && this.lastError) {
-            vscode.window.showWarningMessage(
-                `MCP configuration issue: ${this.lastError}`
-            );
-        } else if (status.enabled && !status.running && status.supported) {
-            vscode.window.showWarningMessage(
-                'MCP is enabled but server is not running. Check configuration.'
-            );
+        // Handle auto-registration changes
+        if (event.affectsConfiguration('beyondDebug.mcp.autoRegister') && this.mcpServer) {
+            if (this.autoRegisterEnabled && this.isMcpApiAvailable()) {
+                await this.registerServer();
+            }
+        }
+        
+        // Handle port/host changes - restart server if configuration changed
+        if ((event.affectsConfiguration('beyondDebug.mcp.port') || 
+             event.affectsConfiguration('beyondDebug.mcp.host')) && this.mcpServer) {
+            await this.restart();
         }
     }
 
     async dispose(): Promise<void> {
-        if (this.configurationDisposable) {
-            this.configurationDisposable.dispose();
+        if (this.mcpServerDisposable) {
+            this.mcpServerDisposable.dispose();
+            this.mcpServerDisposable = null;
         }
-        // MCP server shuts down with extension
-        await this.stopMcpServer();
+        
         this.didChangeEmitter.dispose();
+        
+        if (this.mcpServer) {
+            await this.stopMcpServer();
+        }
     }
 
     isRunning(): boolean {
-        return this.mcpServer?.isRunning() || false;
+        return this.mcpServer !== null && this.mcpServer.isRunning();
     }
 
     async restart(): Promise<void> {
-        await this.stopMcpServer();
-        await this.startMcpServer();
+        if (this.mcpServer) {
+            await this.stopMcpServer();
+        }
         
-        if (this.config.autoRegister) {
+        if (this.isMcpEnabled() && this.isMcpApiAvailable()) {
+            await this.startMcpServer();
             await this.registerServer();
         }
     }
     
+    /**
+     * Check if MCP API is available in current VS Code version
+     */
     private isMcpApiAvailable(): boolean {
-        // Check if VS Code MCP API is available
-        return typeof (vscode as any).mcp !== 'undefined';
+        return typeof vscode.lm?.registerMcpServerDefinitionProvider === 'function';
     }
 
+    /**
+     * Public method to check if MCP is supported in current environment
+     */
     public isMcpSupported(): boolean {
         return this.isMcpApiAvailable();
     }
 
-    public getMcpStatus(): McpStatus {
+    /**
+     * Get MCP status information
+     */
+    public getMcpStatus(): { supported: boolean; enabled: boolean; running: boolean; apiAvailable: boolean; serverInfo?: any } {
         return {
-            supported: this.isMcpSupported(),
-            enabled: this.config.enabled,
+            supported: this.isMcpApiAvailable(),
+            enabled: this.isMcpEnabled(),
             running: this.isRunning(),
             apiAvailable: this.isMcpApiAvailable(),
-            serverInfo: this.mcpServer?.getServerStatus(),
-            lastError: this.lastError || undefined,
-            configValid: this.lastError === null
+            serverInfo: this.mcpServer?.getServerStatus()
         };
     }
 
-    public getConfig(): McpServerConfig {
-        return { ...this.config };
-    }
-
-    public async updateConfig(newConfig: Partial<McpServerConfig>): Promise<void> {
-        try {
-            const vsConfig = vscode.workspace.getConfiguration('beyondDebug.mcp');
-            
-            if (newConfig.enabled !== undefined) {
-                await vsConfig.update('enabled', newConfig.enabled, vscode.ConfigurationTarget.Workspace);
-            }
-            if (newConfig.port !== undefined) {
-                await vsConfig.update('port', newConfig.port, vscode.ConfigurationTarget.Workspace);
-            }
-            if (newConfig.host !== undefined) {
-                await vsConfig.update('host', newConfig.host, vscode.ConfigurationTarget.Workspace);
-            }
-            if (newConfig.autoRegister !== undefined) {
-                await vsConfig.update('autoRegister', newConfig.autoRegister, vscode.ConfigurationTarget.Workspace);
-            }
-            
-            // Configuration change event will be triggered automatically
-        } catch (error) {
-            this.handleError('Failed to update configuration', error);
-            throw error;
-        }
-    }
-
+    /**
+     * Register the MCP server with VS Code
+     */
     async registerServer(): Promise<void> {
-        if (!this.mcpServer || !this.isRunning()) {
-            const error = new Error('MCP server is not running');
-            McpErrorHandler.handleValidationError(error.message, {
-                serverRunning: this.isRunning(),
-                hasServer: this.mcpServer !== null
+        // Check if MCP API is available
+        if (!this.isMcpApiAvailable()) {
+            console.warn('MCP API is not available in this VS Code version. MCP server registration skipped.');
+            vscode.window.showWarningMessage(
+                'MCP functionality requires a newer version of VS Code. Please update VS Code to use MCP features.',
+                'Learn More'
+            ).then(selection => {
+                if (selection === 'Learn More') {
+                    vscode.env.openExternal(vscode.Uri.parse('https://code.visualstudio.com/updates'));
+                }
             });
-            throw error;
+            return;
         }
 
         try {
-            await this.registerMcpServer();
-            vscode.window.showInformationMessage('MCP server registered successfully');
+            this.mcpServerDisposable = vscode.lm.registerMcpServerDefinitionProvider('beyond-debug.mcp-server', {
+                onDidChangeMcpServerDefinitions: this.didChangeEmitter.event,
+                provideMcpServerDefinitions: async () => {
+                    let servers: vscode.McpServerDefinition[] = [];
+
+                    // Only register when server is running
+                    if (this.mcpServer && this.mcpServer.isRunning()) {
+                        const mcpEndpoint = this.mcpServer.getMcpEndpointUrl();
+                        if (mcpEndpoint) {
+                            servers.push(new vscode.McpHttpServerDefinition(
+                                'beyond-debug-mcp-server',
+                                vscode.Uri.parse(mcpEndpoint),
+                                {
+                                    'Content-Type': 'application/json',
+                                    'User-Agent': 'BeyondDebug-Extension'
+                                },
+                                "1.0.0"
+                            ));
+                        }
+                    }
+
+                    return servers;
+                },
+                resolveMcpServerDefinition: async (server: vscode.McpServerDefinition) => {
+                    if (server.label === 'beyond-debug-mcp-server') {
+                        // Ensure server is running
+                        if (!this.mcpServer || !this.mcpServer.isRunning()) {
+                            throw new Error('Beyond Debug MCP Server is not running');
+                        }
+                    }
+                    return server;
+                }
+            });
+            
+            this.context.subscriptions.push(this.mcpServerDisposable);
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            vscode.window.showErrorMessage(`Failed to register MCP server: ${errorMessage}`);
-            throw error;
+            console.error('Failed to register MCP server definition provider:', error);
+            vscode.window.showErrorMessage(`Failed to register MCP server: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
-    }
-    
-    private async registerMcpServer(): Promise<void> {
-        if (!this.mcpServer) return;
-        
-        const serverInfo = {
-            name: 'beyond-debug-server',
-            url: this.mcpServer.getMcpEndpointUrl(),
-            description: 'Beyond Debug MCP Server for GDB debugging tools'
-        };
-        
-        // Register with VS Code MCP API if available
-        if (this.isMcpApiAvailable()) {
-            await (vscode as any).mcp.registerServer(serverInfo);
-        }
-        
-        // Also write to a configuration file for external tools
-        const configPath = this.context.globalStorageUri.fsPath;
-        // Write server configuration for external access
-        // This could be implemented later if needed
     }
 
     onDebugSessionStart(debugSession: BeyDebug): void {
@@ -329,6 +271,9 @@ export class McpManager implements vscode.Disposable {
     // Public methods for external control
     async startServer(): Promise<void> {
         await this.startMcpServer();
+        if (this.autoRegisterEnabled) {
+            await this.registerServer();
+        }
     }
 
     async stopServer(): Promise<void> {
@@ -337,81 +282,5 @@ export class McpManager implements vscode.Disposable {
 
     getServer(): DebugMcpServer | null {
         return this.mcpServer;
-    }
-
-    // Enhanced error reporting methods
-    getErrorHistory(): any[] {
-        return McpErrorHandler.getErrorHistory();
-    }
-
-    getErrorStats(): Record<string, number> {
-        return McpErrorHandler.getErrorStats();
-    }
-
-    clearErrors(): void {
-        McpErrorHandler.clearErrorHistory();
-        this.lastError = null;
-    }
-
-    // Health check methods
-    async performHealthCheck(): Promise<{
-        healthy: boolean;
-        issues: string[];
-        serverStatus?: any;
-    }> {
-        const issues: string[] = [];
-        
-        try {
-            // Check if server is running
-            if (this.config.enabled && !this.isRunning()) {
-                issues.push('MCP server is enabled but not running');
-            }
-
-            // Check configuration validity
-            if (this.lastError) {
-                issues.push(`Configuration error: ${this.lastError}`);
-            }
-
-            // Check server health if running
-            let serverStatus;
-            if (this.mcpServer && this.isRunning()) {
-                serverStatus = this.mcpServer.getServerStatus();
-                
-                if (!serverStatus.health?.isHealthy) {
-                    issues.push('Server health check failed');
-                }
-
-                if (!serverStatus.compatibility?.compatible) {
-                    issues.push(`Debug session compatibility issues: ${serverStatus.compatibility.issues.join(', ')}`);
-                }
-            }
-
-            return {
-                healthy: issues.length === 0,
-                issues,
-                serverStatus
-            };
-        } catch (error) {
-            issues.push(`Health check failed: ${error instanceof Error ? error.message : String(error)}`);
-            return {
-                healthy: false,
-                issues
-            };
-        }
-    }
-
-    // Diagnostic information for troubleshooting
-    getDiagnosticInfo(): {
-        config: McpServerConfig;
-        status: McpStatus;
-        errorHistory: any[];
-        healthCheck: any;
-    } {
-        return {
-            config: this.getConfig(),
-            status: this.getMcpStatus(),
-            errorHistory: this.getErrorHistory().slice(0, 5), // Last 5 errors
-            healthCheck: this.performHealthCheck()
-        };
     }
 }

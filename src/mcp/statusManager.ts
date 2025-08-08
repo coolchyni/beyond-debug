@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import { BeyDebug } from '../beyDebug';
-import { McpErrorHandler, McpErrorType } from './errorHandler';
 
 export interface DebugSessionStatus {
     hasActiveSession: boolean;
@@ -77,10 +76,7 @@ export class StatusManager {
                 }
             } catch (error) {
                 // If reflection fails, use safe defaults
-                McpErrorHandler.handleValidationError(
-                    'Failed to get debug session details',
-                    { error: error instanceof Error ? error.message : String(error) }
-                );
+                console.error('Failed to get debug session details:', error);
             }
         }
 
@@ -91,7 +87,7 @@ export class StatusManager {
         const status = this.getDebugSessionStatus();
         
         if (!status.hasActiveSession) {
-            McpErrorHandler.handleNoDebugSession();
+            console.warn('No active debug session');
             return false;
         }
 
@@ -103,19 +99,13 @@ export class StatusManager {
                 
                 // Check if session has required methods
                 if (typeof sessionAny.getBeyDbgSession !== 'function') {
-                    McpErrorHandler.handleValidationError(
-                        'Debug session is missing required methods',
-                        { sessionType: typeof this.debugSession }
-                    );
+                    console.error('Debug session is missing required methods');
                     return false;
                 }
 
                 return true;
             } catch (error) {
-                McpErrorHandler.handleValidationError(
-                    'Debug session validation failed',
-                    { error: error instanceof Error ? error.message : String(error) }
-                );
+                console.error('Debug session validation failed:', error);
                 return false;
             }
         }
@@ -145,8 +135,8 @@ export class StatusManager {
     }
 
     private getLastError(): string | undefined {
-        const recentErrors = McpErrorHandler.getRecentErrors(1);
-        return recentErrors.length > 0 ? recentErrors[0].message : undefined;
+        // Since we removed the complex error handler, return simple error tracking
+        return undefined; // Can be enhanced later if needed
     }
 
     incrementRequestCount(): void {
@@ -184,10 +174,7 @@ export class StatusManager {
             try {
                 this.validateDebugSession();
             } catch (error) {
-                McpErrorHandler.handleValidationError(
-                    'Debug session health check failed',
-                    { error: error instanceof Error ? error.message : String(error) }
-                );
+                console.error('Debug session health check failed:', error);
             }
         }
     }
@@ -240,7 +227,7 @@ export class StatusManager {
             debugSession: this.getDebugSessionStatus(),
             serverHealth: this.getServerHealthStatus(),
             compatibility: this.checkDebugSessionCompatibility(),
-            errorStats: McpErrorHandler.getErrorStats()
+            errorStats: { requestCount: this.requestCount, errorCount: this.errorCount }
         };
     }
 

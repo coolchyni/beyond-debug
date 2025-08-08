@@ -20,7 +20,7 @@
 		"debugger"
 	],
 	"engines": {
-		"vscode": "^1.65.0"
+		"vscode": "^1.89.0"
 	},
 	"icon": "assets/beyond-debug.png",
 	"categories": [
@@ -57,7 +57,7 @@
 		"@types/mocha": "^8.0.0",
 		"@types/node": "^13.13.52",
 		"@types/ssh2": "^1.11.6",
-		"@types/vscode": "^1.65.0",
+		"@types/vscode": "^1.89.0",
 		"@typescript-eslint/eslint-plugin": "^3.8.0",
 		"@typescript-eslint/parser": "^3.8.0",
 		"esbuild": "^0.25.8",
@@ -76,7 +76,8 @@
 	},
 	"main": "./out/extension",
 	"activationEvents": [
-		"onDebug"
+		"onDebug",
+		"onStartupFinished"
 	],
 	"contributes": {
 		"configuration": {
@@ -84,7 +85,7 @@
 			"properties": {
 				"beyondDebug.mcp.enabled": {
 					"type": "boolean",
-					"default": false,
+					"default": true,
 					"description": "Enable MCP server for AI debugging assistance"
 				},
 				"beyondDebug.mcp.port": {
@@ -104,6 +105,12 @@
 				}
 			}
 		},
+		"mcpServerDefinitionProviders": [
+			{
+				"id": "beyond-debug.mcp-server",
+				"label": "Beyond Debug MCP Server"
+			}
+		],
 		"commands": [
 			{
 				"title": "View Memory",

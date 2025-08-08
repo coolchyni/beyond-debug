@@ -3,15 +3,15 @@ import * as vscode from 'vscode';
 // Export main classes
 export { DebugMcpServer } from './server';
 export { McpManager } from './manager';
-export { McpErrorHandler, McpErrorType } from './errorHandler';
 export { StatusManager } from './statusManager';
 
-// Import and re-export types for compatibility
-import { McpError, DebugToolResponse } from './errorHandler';
-import { DebugSessionStatus, ServerHealthStatus } from './statusManager';
+// Import classes for helper function
 import { McpManager } from './manager';
 
-export { McpError, DebugToolResponse, DebugSessionStatus, ServerHealthStatus };
+// Import types for re-export
+import { DebugSessionStatus, ServerHealthStatus } from './statusManager';
+
+export { DebugSessionStatus, ServerHealthStatus };
 
 // Extension integration helper
 export function createMcpManager(context: vscode.ExtensionContext): McpManager {

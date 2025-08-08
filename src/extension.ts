@@ -27,13 +27,13 @@ const byMemoryViewSchema = 'bymv';
 import * as util from "./util";
 import { NativeAttachItemsProviderFactory } from './nativeAttach';
 import { AttachItemsProvider, AttachPicker } from './attachToProcess';
+// Flag to track what has been activated
+let mcpActivated = false;
+let debugActivated = false;
+
 export function activate(context: vscode.ExtensionContext) {
-
-	// Activate Process Picker Commands
-	//const attachItemsProvider: AttachItemsProvider = NativeAttachItemsProviderFactory.Get();
-	//const attacher: AttachPicker = new AttachPicker(attachItemsProvider);
-	//context.subscriptions.push(vscode.commands.registerCommand('extension.pickNativeProcess', () => attacher.ShowAttachEntries()));
-
+	
+	// Always initialize basic logging
 	let outchannel = vscode.window.createOutputChannel('BeyondDebug');
 	logger.init((e) => {
 		outchannel.appendLine(e.body.output);
@@ -41,22 +41,90 @@ export function activate(context: vscode.ExtensionContext) {
 	logger.setup(LogLevel.Log);
 	util.setExtensionContext(context);
 
-	// Initialize MCP Manager
-	const mcpManager = createMcpManager(context);
-	context.subscriptions.push(mcpManager);
+	// Always register debug components - they are needed for debugging functionality
+	registerDebugComponents(context);
 
-	// Initialize MCP functionality
-	mcpManager.initialize().catch(error => {
+	// Only initialize MCP if enabled
+	const cfg = vscode.workspace.getConfiguration('beyondDebug.mcp');
+	const mcpEnabled = cfg.get<boolean>('enabled', true);
+	
+	if (mcpEnabled) {
+		initializeMcp(context);
+	}
+
+	// Listen for configuration changes to handle MCP enable/disable
+	context.subscriptions.push(
+		vscode.workspace.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('beyondDebug.mcp.enabled')) {
+				const newMcpEnabled = vscode.workspace.getConfiguration('beyondDebug.mcp').get<boolean>('enabled', false);
+				if (newMcpEnabled && !mcpActivated) {
+					// MCP was enabled - initialize MCP functionality
+					initializeMcp(context);
+				}
+			}
+		})
+	);
+}
+
+// Remove the getActivationReason function as we're using a different approach
+
+// Global variables to store references
+let mcpManagerInstance: any = null;
+
+function initializeMcp(context: vscode.ExtensionContext) {
+	if (mcpActivated) return;
+	
+	// Initialize MCP Manager
+	mcpManagerInstance = createMcpManager(context);
+	context.subscriptions.push(mcpManagerInstance);
+
+	// Start MCP immediately
+	mcpManagerInstance.initialize().catch(error => {
 		console.error('Failed to initialize MCP:', error);
 	});
 
 	// Register MCP related commands
+	registerMcpCommands(context, mcpManagerInstance);
+	
+	mcpActivated = true;
+}
+
+function registerDebugComponents(context: vscode.ExtensionContext) {
+	// register a configuration provider for 'hi-gdb' debug type
+	const provider = new HiDebugConfigurationProvider();
+	context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('by-gdb', provider));
+
+	context.subscriptions.push(
+		vscode.commands.registerTextEditorCommand('bydebug.ViewMemory', memview.cmdViewMemoryWithHexEdit)
+	);
+
+	// debug adapters can be run in different ways by using a vscode.DebugAdapterDescriptorFactory:
+	let factory: vscode.DebugAdapterDescriptorFactory;
+	switch (runMode) {
+		case 'server':
+			// run the debug adapter as a server inside the extension and communicate via a socket
+			factory = new HiDebugAdapterServerDescriptorFactory();
+			break;
+
+		case 'inline':
+			// run the debug adapter inside the extension and directly talk to it
+			factory = new InlineDebugAdapterFactory(mcpManagerInstance);
+			break;
+	}
+
+	context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory('by-gdb', factory));
+	// if ('dispose' in factory) {
+	// 	context.subscriptions.push(factory);
+	// }
+}
+
+function registerMcpCommands(context: vscode.ExtensionContext, mcpManager: any) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand('beyondDebug.mcp.start', async () => {
 			try {
 				await mcpManager.restart();
 				vscode.window.showInformationMessage('MCP Server started');
-			} catch (error) {
+			} catch (error: any) {
 				vscode.window.showErrorMessage(`Failed to start MCP server: ${error.message}`);
 			}
 		}),
@@ -65,7 +133,7 @@ export function activate(context: vscode.ExtensionContext) {
 			try {
 				await mcpManager.dispose();
 				vscode.window.showInformationMessage('MCP Server stopped');
-			} catch (error) {
+			} catch (error: any) {
 				vscode.window.showErrorMessage(`Failed to stop MCP server: ${error.message}`);
 			}
 		}),
@@ -74,7 +142,7 @@ export function activate(context: vscode.ExtensionContext) {
 			try {
 				await mcpManager.restart();
 				vscode.window.showInformationMessage('MCP Server restarted');
-			} catch (error) {
+			} catch (error: any) {
 				vscode.window.showErrorMessage(`Failed to restart MCP server: ${error.message}`);
 			}
 		}),
@@ -90,37 +158,6 @@ ${status.serverInfo ? `- Server URL: ${status.serverInfo.url}` : ''}`;
 			vscode.window.showInformationMessage(message);
 		})
 	);
-
-	// register a configuration provider for 'hi-gdb' debug type
-	const provider = new HiDebugConfigurationProvider();
-	context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('by-gdb', provider));
-
-
-	context.subscriptions.push(
-		vscode.commands.registerTextEditorCommand('bydebug.ViewMemory', memview.cmdViewMemoryWithHexEdit)
-	);
-
-
-	// debug adapters can be run in different ways by using a vscode.DebugAdapterDescriptorFactory:
-	let factory: vscode.DebugAdapterDescriptorFactory;
-	switch (runMode) {
-		case 'server':
-			// run the debug adapter as a server inside the extension and communicate via a socket
-			factory = new HiDebugAdapterServerDescriptorFactory();
-			break;
-
-
-		case 'inline':
-			// run the debug adapter inside the extension and directly talk to it
-			factory = new InlineDebugAdapterFactory(mcpManager);
-			break;
-	}
-
-	context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory('by-gdb', factory));
-	// if ('dispose' in factory) {
-	// 	context.subscriptions.push(factory);
-	// }
-
 }
 
 export function deactivate() {
