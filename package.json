@@ -1,7 +1,7 @@
 {
 	"name": "beyond-debug",
 	"displayName": "GDB Debugger - Beyond",
-	"version": "0.9.15",
+	"version": "0.9.16",
 	"publisher": "coolchyni",
 	"description": "Debugger with gdb for c,c++,freepascal,fortran and more.",
 	"author": {
@@ -20,7 +20,7 @@
 		"debugger"
 	],
 	"engines": {
-		"vscode": "^1.65.0"
+		"vscode": "^1.89.0"
 	},
 	"icon": "assets/beyond-debug.png",
 	"categories": [
@@ -40,11 +40,12 @@
 		"publish": "vsce publish",
 		"peg": "pegjs -o ./src/dbgmits/mi_output_parser.js src/dbgmits/mi_output_grammar.pegjs",
 		"vscode:prepublish": "npm run -S esbuild-base -- --minify",
-		"esbuild-base": "rimraf out &&  node build.js",
+		"esbuild-base": "node -e \"require('fs').rmSync('out', {recursive: true, force: true})\" && node build.js",
 		"esbuild": "npm run -S esbuild-base -- --sourcemap",
 		"esbuild-watch": "npm run -S esbuild-base -- --sourcemap --watch"
 	},
 	"dependencies": {
+		"@modelcontextprotocol/sdk": "^1.17.2",
 		"@vscode/debugadapter": "1.57.0",
 		"await-notify": "1.0.1",
 		"iconv-lite": "0.6.2",
@@ -56,10 +57,10 @@
 		"@types/mocha": "^8.0.0",
 		"@types/node": "^13.13.52",
 		"@types/ssh2": "^1.11.6",
-		"@types/vscode": "^1.65.0",
+		"@types/vscode": "^1.89.0",
 		"@typescript-eslint/eslint-plugin": "^3.8.0",
 		"@typescript-eslint/parser": "^3.8.0",
-		"esbuild": "^0.14.23",
+		"esbuild": "^0.25.8",
 		"esbuild-native-node-modules-plugin": "^1.0.3",
 		"eslint": "^7.6.0",
 		"eslint-plugin-react": "^7.30.0",
@@ -70,20 +71,71 @@
 		"simplepeg": "1.2.0",
 		"ssh2": "^1.11.0",
 		"typescript": "^3.8.3",
-		"vsce": "1.78.0",
 		"vscode-nls": "5.2.0"
 	},
 	"main": "./out/extension",
 	"activationEvents": [
-		"onDebug"
+		"onDebug",
+		"onStartupFinished"
 	],
 	"contributes": {
+		"configuration": {
+			"title": "Beyond Debug MCP",
+			"properties": {
+				"beyondDebug.mcp.enabled": {
+					"type": "boolean",
+					"default": false,
+					"description": "Enable MCP server for AI debugging assistance"
+				},
+				"beyondDebug.mcp.port": {
+					"type": "number",
+					"default": 0,
+					"description": "Port for MCP server (0 for auto-assign)"
+				},
+				"beyondDebug.mcp.host": {
+					"type": "string",
+					"default": "localhost",
+					"description": "Host for MCP server"
+				},
+				"beyondDebug.mcp.autoRegister": {
+					"type": "boolean",
+					"default": false,
+					"description": "Automatically register MCP server with VS Code"
+				}
+			}
+		},
+		"mcpServerDefinitionProviders": [
+			{
+				"id": "beyond-debug.mcp-server",
+				"label": "Beyond Debug MCP Server"
+			}
+		],
 		"commands": [
 			{
 				"title": "View Memory",
 				"command": "bydebug.ViewMemory",
 				"icon": "$(symbol-parameter)",
 				"category": "byeond"
+			},
+			{
+				"command": "beyondDebug.mcp.start",
+				"title": "Start MCP Server",
+				"category": "Beyond Debug"
+			},
+			{
+				"command": "beyondDebug.mcp.stop",
+				"title": "Stop MCP Server",
+				"category": "Beyond Debug"
+			},
+			{
+				"command": "beyondDebug.mcp.restart",
+				"title": "Restart MCP Server",
+				"category": "Beyond Debug"
+			},
+			{
+				"command": "beyondDebug.mcp.status",
+				"title": "Show MCP Status",
+				"category": "Beyond Debug"
 			}
 		],
 		"menus": {
@@ -225,15 +277,15 @@
 								"description": "Set the charset of a string variable on display.  e.g. utf-8.",
 								"default": ""
 							},
-							"language":{
-								"type":"string",
+							"language": {
+								"type": "string",
 								"enum": [
 									"auto",
 									"c++",
 									"pascal"
 								],
-								"description":"The development language of for debug. e.g. c++ pascal ...",
-								"default":"auto"
+								"description": "The development language of for debug. e.g. c++ pascal ...",
+								"default": "auto"
 							},
 							"remote": {
 								"required": [

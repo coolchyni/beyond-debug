@@ -16,7 +16,7 @@ import { Message } from '@vscode/debugadapter/lib/messages';
 
 const SSH_MAP_KEY = 'BY:';
 const SSH_KEY_KEY = 'BY:SSHKEY';
-var ssh_clients: Map<string, BySSHClient> = new Map<string, BySSHClient>;
+var ssh_clients: Map<string, BySSHClient> = new Map<string, BySSHClient>();
 class SSHTerminal implements vscode.Pseudoterminal, vscode.TerminalExitStatus {
 
   constructor(private channel: Channel,public sshclient:BySSHClient) {
@@ -284,7 +284,7 @@ export class BeyDbgSessionSSH extends DebugSession {
       if (this.isStarted) {
         resolve();
       } else {
-        this.sshclient.once('ready',()=>{ resolve})
+        this.sshclient.once('ready',()=>{ resolve()})
         this.once(dbg.EVENT_SESSION_STARTED, () => {
           resolve();
         });
@@ -404,7 +404,7 @@ export class BeyDbgSessionSSH extends DebugSession {
               sftp.stat(trans.to, (err, stats) => {
                 if(stats){
                   mode=stats.mode;
-                  if (stat.size = stats.size) {
+                  if (stat.size === stats.size) {
 
                     let f_mtime = util.extensionContext.workspaceState.get<number>(f_key);
   
@@ -515,7 +515,7 @@ export class BeyDbgSessionSSH extends DebugSession {
   }
   startInferior(
     options?: { threadGroup?: string; stopAtStart?: boolean }): Promise<void> {
-    if (options.stopAtStart) {
+    if (options?.stopAtStart) {
       if (this.major_version > 7) {
         return this.execNativeCommand('starti');
       }
@@ -547,6 +547,10 @@ export class BeyDbgSessionSSH extends DebugSession {
   ): Promise<IBreakpointInfo> {
 
     location = location.replace(this.workspacepath + path.sep, '');
+    if(os.platform()=="win32"){
+      location = location.replace(/^([a-zA-Z]):\\/, '').replace(/\\/g, '/');
+
+    }
     return super.addBreakpoint(location, options);
   }
 
