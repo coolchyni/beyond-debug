@@ -46,7 +46,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// Only initialize MCP if enabled
 	const cfg = vscode.workspace.getConfiguration('beyondDebug.mcp');
-	const mcpEnabled = cfg.get<boolean>('enabled', true);
+	const mcpEnabled = cfg.get<boolean>('enabled', false);
 	
 	if (mcpEnabled) {
 		initializeMcp(context);

@@ -84,7 +84,7 @@
 			"properties": {
 				"beyondDebug.mcp.enabled": {
 					"type": "boolean",
-					"default": true,
+					"default": false,
 					"description": "Enable MCP server for AI debugging assistance"
 				},
 				"beyondDebug.mcp.port": {
