@@ -1,4 +1,4 @@
-/*---------------------------------------------------------
+﻿/*---------------------------------------------------------
  * Copyright (C) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------*/
 
@@ -56,6 +56,8 @@ export class BeyDebug extends DebugSession {
 	private _isProgressCancellable = true;
 
 	private _breakPoints = new Map<string, DebugProtocol.Breakpoint[]>();
+
+	private _functionBreakPoints: DebugProtocol.Breakpoint[] = [];
 
 	private _locals: { frame?: IStackFrameInfo, vars: IVariableInfo[], watch: IWatchInfo[] } = { frame: null, vars: [], watch: [] };
 
@@ -297,6 +299,8 @@ export class BeyDebug extends DebugSession {
 
 		// make VS Code to support data breakpoints
 		response.body.supportsDataBreakpoints = true;
+
+		response.body.supportsFunctionBreakpoints = true;
 
 		// make VS Code to support completion in REPL
 		//todo 
@@ -627,6 +631,62 @@ export class BeyDebug extends DebugSession {
 
 	}
 
+
+	protected async setFunctionBreakPointsRequest(response: DebugProtocol.SetFunctionBreakpointsResponse, args: DebugProtocol.SetFunctionBreakpointsArguments) {
+		await this.dbgSession.waitForStart();
+
+		let isPause = false;
+		if (this._isRunning) {
+			await this.dbgSession.pause();
+			isPause = true;
+		}
+
+		const existingIds = this._functionBreakPoints
+			.map(bp => bp.id)
+			.filter((id): id is number => typeof id === 'number');
+		if (existingIds.length > 0) {
+			try {
+				await this.dbgSession.removeBreakpoints(existingIds);
+			} catch (error) {
+				this.sendMsgToDebugConsole((error as Error)?.message ?? 'Failed to remove function breakpoints.', EMsgType.error);
+			}
+		}
+
+		const actualBreakpoints: DebugProtocol.Breakpoint[] = [];
+		for (const fb of args.breakpoints || []) {
+			if (!fb.name) {
+				const bp = new Breakpoint(false) as DebugProtocol.Breakpoint;
+				bp.message = 'Missing function name.';
+				actualBreakpoints.push(bp);
+				continue;
+			}
+			try {
+				const bk = await this.dbgSession.addBreakpoint(this.language=='pascal' ? fb.name.toUpperCase() : fb.name, {
+					isPending: true,
+					condition: fb.condition
+				});
+				const bp = new Breakpoint(true) as DebugProtocol.Breakpoint;
+				bp.id = bk.id;
+				bp.verified = true;
+				bp.name = fb.name;
+				actualBreakpoints.push(bp);
+			} catch (error) {
+				const bp = new Breakpoint(false) as DebugProtocol.Breakpoint;
+				bp.name = fb.name;
+				bp.message = (error as Error)?.message ?? 'Failed to set function breakpoint.';
+				actualBreakpoints.push(bp);
+			}
+		}
+
+		this._functionBreakPoints = actualBreakpoints;
+		if (isPause) {
+			this.dbgSession.resumeAllInferiors(false);
+		}
+		response.body = {
+			breakpoints: actualBreakpoints
+		};
+		this.sendResponse(response);
+	}
 
 	protected async setBreakPointsRequest(response: DebugProtocol.SetBreakpointsResponse, args: DebugProtocol.SetBreakpointsArguments) {
 
