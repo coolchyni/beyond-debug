@@ -17,6 +17,11 @@ It implemented through the GDB’s Machine Interface(MI).
 * use native commands in debug console
 * attach to process
 
+## What's new in 0.9.16
+- Function breakpoints can now be set and will stop execution when their symbols are hit.
+- The disassembly view shows instruction listings around the current program counter.
+- Instruction-level stepping (step over, into, and out) is available for fine-grained control.
+
 ## Using the debugger
 
 * Install gdb on your system.
