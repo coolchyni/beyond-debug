@@ -312,6 +312,10 @@ export class BeyDebug extends DebugSession {
 		// make VS Code provide "Step in Target" functionality
 		response.body.supportsStepInTargetsRequest = false;
 
+		// disassembly and instruction stepping capabilities
+		response.body.supportsDisassembleRequest = true;
+		response.body.supportsSteppingGranularity = true;
+
 		response.body.supportsTerminateThreadsRequest = true;
 
 		
@@ -761,10 +765,20 @@ export class BeyDebug extends DebugSession {
 		}
 		this._watchs.clear();
 
+		const stackFrames = frames.map(f => {
+			const sf = new StackFrame(
+				f.level,
+				f.func,
+				f.filename ? new Source(f.filename!, f.fullname) : null,
+				this.convertDebuggerLineToClient(f.line!)
+			);
+			// Provide memory reference for disassembly
+			(sf as any).instructionPointerReference = f.address;
+			return sf;
+		});
+
 		response.body = {
-			stackFrames: frames.map(f => {
-				return new StackFrame(f.level, f.func, f.filename ? new Source(f.filename!, f.fullname) : null, this.convertDebuggerLineToClient(f.line!));
-			}),
+			stackFrames,
 			totalFrames: frames.length
 		};
 		this.sendResponse(response);
@@ -953,7 +967,11 @@ export class BeyDebug extends DebugSession {
 	}
 
 	protected nextRequest(response: DebugProtocol.NextResponse, args: DebugProtocol.NextArguments): void {
-		this.dbgSession.stepOverLine({ threadId: args.threadId });
+		if (args.granularity === 'instruction') {
+			this.dbgSession.stepOverInstruction({ threadId: args.threadId });
+		} else {
+			this.dbgSession.stepOverLine({ threadId: args.threadId });
+		}
 		this.sendResponse(response);
 	}
 
@@ -963,8 +981,11 @@ export class BeyDebug extends DebugSession {
 	}
 
 	protected stepInRequest(response: DebugProtocol.StepInResponse, args: DebugProtocol.StepInArguments): void {
-
-		this.dbgSession.stepIntoLine({ threadId: args.threadId, });
+		if (args.granularity === 'instruction') {
+			this.dbgSession.stepIntoInstruction({ threadId: args.threadId });
+		} else {
+			this.dbgSession.stepIntoLine({ threadId: args.threadId });
+		}
 		this.sendResponse(response);
 	}
 
@@ -1189,4 +1210,89 @@ export class BeyDebug extends DebugSession {
 	public getBeyDbgSession():BeyDbgSession{
 		return this.dbgSession;
 	} 
+
+	// Disassemble request handler
+	protected async disassembleRequest(response: DebugProtocol.DisassembleResponse, args: DebugProtocol.DisassembleArguments) {
+		try {
+			const startAddr = this.addToAddress(args.memoryReference, args.offset || 0);
+			// Estimate a byte window large enough to cover requested instructions
+			const preInstr = args.instructionOffset && args.instructionOffset < 0 ? Math.abs(args.instructionOffset) : 0;
+			const totalInstr = (args.instructionCount || 0) + preInstr;
+			const maxBytesPerInstr = 16n; // conservative upper bound per instruction
+			const byteWindow = BigInt(totalInstr <= 0 ? 64 : totalInstr) * maxBytesPerInstr;
+			const preBytes = BigInt(preInstr) * maxBytesPerInstr;
+			const startWindow = this.subFromAddress(startAddr, preBytes);
+			const endWindow = this.addToAddress(startWindow, byteWindow);
+
+			// Prefer grouped by source line to provide location information if available
+			const groups = await (this.dbgSession as any).disassembleAddressRangeByLine(startWindow, endWindow, true) as ReturnType<any>;
+			// Flatten groups while keeping file/line mapping
+			const flat: { insn: any, file?: string, fullname?: string, line?: number }[] = [];
+			for (const g of groups) {
+				for (const insn of g.instructions) {
+					flat.push({ insn, file: g.file, fullname: g.fullname, line: g.line });
+				}
+			}
+
+			const startBI = this.parseAddress(startAddr);
+			// Find first instruction at or after the requested start
+			let idx = flat.findIndex(x => this.parseAddress(x.insn.address) >= startBI);
+			if (idx < 0) idx = 0;
+			idx = Math.max(0, idx + (args.instructionOffset || 0));
+
+			const out: DebugProtocol.DisassembledInstruction[] = [];
+			for (let i = 0; i < (args.instructionCount || 0); i++) {
+				const item = flat[idx + i];
+				if (!item) {
+					out.push({ address: this.formatAddress(this.addToAddress(startAddr, BigInt(i) * 1n)), instruction: '<invalid>' });
+					continue;
+				}
+				const insn = item.insn;
+				const di: DebugProtocol.DisassembledInstruction = {
+					address: insn.address,
+					instructionBytes: insn.opcodes,
+					instruction: insn.inst,
+					symbol: args.resolveSymbols !== false && insn.func ? `${insn.func}${typeof insn.offset === 'number' ? '+' + insn.offset : ''}` : undefined,
+				};
+				if (item.fullname || item.file) {
+					di.location = new Source(item.file || item.fullname, item.fullname || item.file);
+					di.line = item.line;
+				}
+				out.push(di);
+			}
+
+			response.body = { instructions: out };
+			this.sendResponse(response);
+		} catch (err) {
+			response.success = false;
+			response.message = (err as Error)?.message || 'disassemble failed';
+			this.sendResponse(response);
+		}
+	}
+
+	private parseAddress(addr: string): bigint {
+		if (!addr) return 0n;
+		let s = addr.trim();
+		if (s.startsWith('0x') || s.startsWith('0X')) {
+			return BigInt(s);
+		}
+		return BigInt(parseInt(s, 10));
+	}
+
+	private formatAddress(addr: string | bigint): string {
+		const bi = typeof addr === 'string' ? this.parseAddress(addr) : addr;
+		return '0x' + bi.toString(16);
+	}
+
+	private addToAddress(addr: string, delta: number | bigint): string {
+		const a = this.parseAddress(addr);
+		const d = typeof delta === 'number' ? BigInt(delta) : delta;
+		return this.formatAddress(a + d);
+	}
+
+	private subFromAddress(addr: string, delta: bigint): string {
+		const a = this.parseAddress(addr);
+		const res = a > delta ? a - delta : 0n;
+		return this.formatAddress(res);
+	}
 }
