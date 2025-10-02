@@ -17,9 +17,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/setup-node@v1
+      - uses: actions/setup-node@v3
         with:
-          node-version: 14
+          node-version: 18
           registry-url: https://registry.npmjs.org/
 
       - name: Install the dependencies
@@ -44,9 +44,9 @@ jobs:
       - name: Package Extension into .vsix file
         id: asset
         shell: bash
-        run: >
-          vsce package;
-          echo ::set-output name=vsix_path::$(ls *.vsix)
+        run: |
+          vsce package
+          echo "vsix_path=$(ls *.vsix)" >> $GITHUB_OUTPUT
           
       - name: Upload .vsix file to Github as release asset
         uses: actions/upload-release-asset@v1
