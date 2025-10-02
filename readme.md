@@ -62,7 +62,7 @@ If the argument `program` is set and only one process is found ,the debugger wil
     "type": "by-gdb",
     "request": "attach",
     "name": "Attach(gdb)",
-    "program": "{fileBasenameNoExtension}",
+    "program": "${fileBasenameNoExtension}",
     "cwd": "${workspaceRoot}"
 }
 ```
@@ -198,3 +198,4 @@ transfer|array||Transfer local file to remote before launch.
 
 # Thanks
 * [dbgmits](https://github.com/enlight/dbgmits) This library  used to programmatically control debuggers that implement the GDB/Machine Interface via JavaScript.
+
