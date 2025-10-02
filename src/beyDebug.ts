@@ -58,6 +58,7 @@ export class BeyDebug extends DebugSession {
 	private _breakPoints = new Map<string, DebugProtocol.Breakpoint[]>();
 
 	private _functionBreakPoints: DebugProtocol.Breakpoint[] = [];
+	private _instructionBreakPoints: DebugProtocol.Breakpoint[] = [];
 
 	private _locals: { frame?: IStackFrameInfo, vars: IVariableInfo[], watch: IWatchInfo[] } = { frame: null, vars: [], watch: [] };
 
@@ -301,6 +302,7 @@ export class BeyDebug extends DebugSession {
 		response.body.supportsDataBreakpoints = true;
 
 		response.body.supportsFunctionBreakpoints = true;
+		response.body.supportsInstructionBreakpoints = true;
 
 		// make VS Code to support completion in REPL
 		//todo 
@@ -735,6 +737,92 @@ export class BeyDebug extends DebugSession {
 		if (isPause) {
 			this.dbgSession.resumeAllInferiors(false);
 		}
+		response.body = {
+			breakpoints: actualBreakpoints
+		};
+		this.sendResponse(response);
+
+	}
+
+	protected async setInstructionBreakpointsRequest(response: DebugProtocol.SetInstructionBreakpointsResponse, args: DebugProtocol.SetInstructionBreakpointsArguments, request?: DebugProtocol.Request) {
+
+		await this.dbgSession.waitForStart();
+
+		let isPause = false;
+		if (this._isRunning) {
+			await this.dbgSession.pause();
+			isPause = true;
+		}
+
+		const existingIds = this._instructionBreakPoints
+			.map(bp => bp.id)
+			.filter((id): id is number => typeof id === 'number');
+		if (existingIds.length > 0) {
+			try {
+				await this.dbgSession.removeBreakpoints(existingIds);
+			} catch (error) {
+				this.sendMsgToDebugConsole((error as Error)?.message ?? 'Failed to remove instruction breakpoints.', EMsgType.error);
+			}
+		}
+
+		const actualBreakpoints: DebugProtocol.Breakpoint[] = [];
+		const requested = args.breakpoints || [];
+		for (const ib of requested) {
+			if (!ib?.instructionReference) {
+				const bp = new Breakpoint(false) as DebugProtocol.Breakpoint;
+				bp.message = 'Missing instruction reference.';
+				actualBreakpoints.push(bp);
+				continue;
+			}
+
+			const offset = typeof ib.offset === 'number' ? ib.offset : 0;
+			let resolvedAddress: string | undefined;
+			let locationExpression = '';
+
+			try {
+				const base = this.formatAddress(ib.instructionReference);
+				resolvedAddress = offset !== 0 ? this.addToAddress(base, offset) : base;
+				locationExpression = `*${resolvedAddress}`;
+			} catch (_) {
+				const ref = ib.instructionReference.trim();
+				if (offset !== 0) {
+					const sign = offset >= 0 ? '+' : '';
+					locationExpression = `*(${ref})${sign}${offset}`;
+				} else if (ref.startsWith('*')) {
+					locationExpression = ref;
+				} else {
+					locationExpression = `*${ref}`;
+				}
+			}
+
+			try {
+				const bk = await this.dbgSession.addBreakpoint(locationExpression, {
+					isPending: true,
+					condition: ib.condition
+				});
+				const bp = new Breakpoint(true) as DebugProtocol.Breakpoint;
+				bp.id = bk.id;
+				bp.verified = true;
+				const resolved = (bk.locations && bk.locations.length > 0) ? bk.locations[0].address : resolvedAddress;
+				if (resolved) {
+					bp.instructionReference = resolved;
+				} else {
+					bp.instructionReference = ib.instructionReference;
+				}
+				actualBreakpoints.push(bp);
+			} catch (error) {
+				const bp = new Breakpoint(false) as DebugProtocol.Breakpoint;
+				bp.instructionReference = resolvedAddress ?? ib.instructionReference;
+				bp.message = (error as Error)?.message ?? 'Failed to set instruction breakpoint.';
+				actualBreakpoints.push(bp);
+			}
+		}
+
+		this._instructionBreakPoints = actualBreakpoints;
+		if (isPause) {
+			this.dbgSession.resumeAllInferiors(false);
+		}
+
 		response.body = {
 			breakpoints: actualBreakpoints
 		};

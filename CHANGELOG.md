@@ -1,3 +1,9 @@
+## [0.9.16] - 2024-06-10
+## Added
+- Add support for setting and hitting function breakpoints.
+- Add support for disassembly view.
+- Add support for stepping through instructions (step in, step out, step over).
+
 ## [0.9.15] - 2023-05-30
 ## Fixed 
  - Resolve the issue of not being able to set breakpoints when using SSH for remote debugging in Linux.
