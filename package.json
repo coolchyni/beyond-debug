@@ -40,7 +40,7 @@
 		"publish": "vsce publish",
 		"peg": "pegjs -o ./src/dbgmits/mi_output_parser.js src/dbgmits/mi_output_grammar.pegjs",
 		"vscode:prepublish": "npm run -S esbuild-base -- --minify",
-		"esbuild-base": "rimraf out &&  node build.js",
+		"esbuild-base": "node -e \"require('fs').rmSync('out', {recursive: true, force: true})\" && node build.js",
 		"esbuild": "npm run -S esbuild-base -- --sourcemap",
 		"esbuild-watch": "npm run -S esbuild-base -- --sourcemap --watch"
 	},
@@ -71,7 +71,6 @@
 		"simplepeg": "1.2.0",
 		"ssh2": "^1.11.0",
 		"typescript": "^3.8.3",
-		"vsce": "1.78.0",
 		"vscode-nls": "5.2.0"
 	},
 	"main": "./out/extension",
