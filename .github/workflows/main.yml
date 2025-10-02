@@ -19,14 +19,14 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v3
         with:
-          node-version: 18
+          node-version: '22'
           registry-url: https://registry.npmjs.org/
 
       - name: Install the dependencies
         run: npm i
 
       - name: Install vsce
-        run: npm i -g vsce
+        run: npm i -g @vscode/vsce@latest
         
       - name: Install esbuild
         run: npm i -g esbuild
