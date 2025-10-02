@@ -1,4 +1,4 @@
-## [0.9.16] - 2024-06-10
+## [0.9.16] - 2025-10-02
 ## Added
 - Add support for setting and hitting function breakpoints.
 - Add support for disassembly view.
