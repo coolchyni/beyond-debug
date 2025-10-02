@@ -1278,45 +1278,62 @@ export class BeyDebug extends DebugSession {
 			// Estimate a byte window large enough to cover requested instructions
 			const preInstr = args.instructionOffset && args.instructionOffset < 0 ? Math.abs(args.instructionOffset) : 0;
 			const totalInstr = (args.instructionCount || 0) + preInstr;
-			const maxBytesPerInstr = 16n; // conservative upper bound per instruction
+			const maxBytesPerInstr = BigInt(16); // conservative upper bound per instruction
 			const byteWindow = BigInt(totalInstr <= 0 ? 64 : totalInstr) * maxBytesPerInstr;
 			const preBytes = BigInt(preInstr) * maxBytesPerInstr;
 			const startWindow = this.subFromAddress(startAddr, preBytes);
 			const endWindow = this.addToAddress(startWindow, byteWindow);
 
-			// Prefer grouped by source line to provide location information if available
-			const groups = await (this.dbgSession as any).disassembleAddressRangeByLine(startWindow, endWindow, true) as ReturnType<any>;
-			// Flatten groups while keeping file/line mapping
-			const flat: { insn: any, file?: string, fullname?: string, line?: number }[] = [];
+			// Retrieve disassembly and optional location metadata
+			const [groups, rawInstructions] = await Promise.all([
+				(this.dbgSession as any).disassembleAddressRangeByLine(startWindow, endWindow, true) as Promise<dbg.ISourceLineAsm[]>,
+				(this.dbgSession as any).disassembleAddressRange(startWindow, endWindow, true) as Promise<dbg.IAsmInstruction[]>,
+			]);
+			const locationByAddress = new Map<string, { file?: string; fullname?: string; line?: number }>();
 			for (const g of groups) {
 				for (const insn of g.instructions) {
-					flat.push({ insn, file: g.file, fullname: g.fullname, line: g.line });
+					const key = this.formatAddress(insn.address);
+					locationByAddress.set(key, { file: g.file, fullname: g.fullname, line: g.line });
 				}
 			}
 
 			const startBI = this.parseAddress(startAddr);
-			// Find first instruction at or after the requested start
-			let idx = flat.findIndex(x => this.parseAddress(x.insn.address) >= startBI);
-			if (idx < 0) idx = 0;
+			let idx = rawInstructions.findIndex(insn => this.parseAddress(insn.address) >= startBI);
+			if (idx < 0) {
+				idx = 0;
+			}
 			idx = Math.max(0, idx + (args.instructionOffset || 0));
 
 			const out: DebugProtocol.DisassembledInstruction[] = [];
-			for (let i = 0; i < (args.instructionCount || 0); i++) {
-				const item = flat[idx + i];
-				if (!item) {
-					out.push({ address: this.formatAddress(this.addToAddress(startAddr, BigInt(i) * 1n)), instruction: '<invalid>' });
+			const count = args.instructionCount || 0;
+			for (let i = 0; i < count; i++) {
+				const asm = rawInstructions[idx + i];
+				if (!asm) {
+					out.push({ address: this.formatAddress(this.addToAddress(startAddr, BigInt(i))), instruction: '<invalid>' });
 					continue;
 				}
-				const insn = item.insn;
+				const addrKey = this.formatAddress(asm.address);
+				const offset = Number.isFinite(asm.offset) ? asm.offset : undefined;
+				let symbol: string | undefined;
+				if (args.resolveSymbols !== false && asm.func) {
+					if (offset === undefined || offset === 0) {
+						symbol = asm.func;
+					} else if (offset > 0) {
+						symbol = `${asm.func}+${offset}`;
+					} else {
+						symbol = `${asm.func}${offset}`;
+					}
+				}
 				const di: DebugProtocol.DisassembledInstruction = {
-					address: insn.address,
-					instructionBytes: insn.opcodes,
-					instruction: insn.inst,
-					symbol: args.resolveSymbols !== false && insn.func ? `${insn.func}${typeof insn.offset === 'number' ? '+' + insn.offset : ''}` : undefined,
+					address: addrKey,
+					instructionBytes: asm.opcodes,
+					instruction: asm.inst,
+					symbol,
 				};
-				if (item.fullname || item.file) {
-					di.location = new Source(item.file || item.fullname, item.fullname || item.file);
-					di.line = item.line;
+				const loc = locationByAddress.get(addrKey);
+				if (loc?.fullname || loc?.file) {
+					di.location = new Source(loc.file || loc.fullname, loc.fullname || loc.file);
+					di.line = loc.line;
 				}
 				out.push(di);
 			}
