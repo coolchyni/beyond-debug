@@ -99,7 +99,7 @@ export class BeyDbgSessionNormal extends DebugSession {
         return value.name==='BeyondDebug';
       });
       if(!tm){
-         tm=vscode.window.createTerminal('BeyondDebug');
+         tm=vscode.window.createTerminal({ name: 'BeyondDebug', shellPath: '/bin/cat', isTransient: true });
       }
       tm.show(true);
       let pid=await tm.processId;
