@@ -450,7 +450,13 @@ export class BeyDbgSessionSSH extends DebugSession {
 
 
           }
-          this.sshclient.exec(`gdb --interpreter mi`, (error, channel) => {
+
+          
+          let debuggerArgs: string[] = this.args.debuggerArgs ? this.args.debuggerArgs : [];
+          debuggerArgs = debuggerArgs.concat(['--interpreter mi']);
+          let spawmCmd = ["gdb", ...debuggerArgs].join(" ");
+
+          this.sshclient.exec(spawmCmd, (error, channel) => {
             this.clientChannel = channel;
             this.start(channel, channel);
             this.executeCommand(`inferior-tty-set ${tty}`);
@@ -460,7 +466,12 @@ export class BeyDbgSessionSSH extends DebugSession {
           });
         });
       } else {
-        this.sshclient.exec(`gdb --interpreter mi`, (error, channel) => {
+
+        let debuggerArgs: string[] = this.args.debuggerArgs ? this.args.debuggerArgs : [];
+        debuggerArgs = debuggerArgs.concat(['--interpreter mi']);
+        let spawmCmd = ["gdb", ...debuggerArgs].join(" ");
+
+        this.sshclient.exec(spawmCmd, (error, channel) => {
           this.tryGetPid();
           this.clientChannel = channel;
           this.start(channel, channel);
