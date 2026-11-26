@@ -108,7 +108,7 @@ export class BeyDbgSession extends DebugSession {
         if(os.platform() === 'win32'){
           if(this.winbreakpath){
            
-            let proc = spawn(path.basename(this.winbreakpath), [this.getTargetPid().toString()], { cwd: path.dirname(this.winbreakpath) });
+            let proc = spawn(this.winbreakpath, [this.getTargetPid().toString()], { cwd: path.dirname(this.winbreakpath) });
             proc.on('close', (code) => {
               if(code==0){
                 //this.emit(EVENT_TARGET_STOPPED);
